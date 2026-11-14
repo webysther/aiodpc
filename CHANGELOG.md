@@ -5,6 +5,20 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.2.1] - Unreleased
+
+### Fixed
+
+- The municipalities of South Tyrol are found by their Italian or German name
+  (`"Bolzano"` or `"Bozen"`) in both bulletins. DPC writes them as
+  `"Bolzano/Bozen"` in the criticality bulletin and as `"Bolzano"` in the
+  vigilance bulletin, and a few of them differently (`"Rasun Anterselva"`, or
+  `"Salorno"` before its renaming), so they were not found and the coordinates
+  were used instead. `aiodpc.municipalities` holds these other names.
+- A municipality is first looked up as written; its other names are tried only
+  when no zone lists it, so `"Corvara"` (Abruzzo) is never taken for
+  `"Corvara in Badia/Corvara"`.
+
 ## [0.2.0] - 2026-11-14
 
 The API now has three levels: ask whether a place has a risk, read the
@@ -78,5 +92,6 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.2.1]: https://github.com/webysther/aiodpc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/webysther/aiodpc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/webysther/aiodpc/releases/tag/v0.1.0

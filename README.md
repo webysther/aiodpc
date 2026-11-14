@@ -158,6 +158,10 @@ municipality are considered and the one with the highest level is used; `zone`
 is the zone containing the coordinates. Large municipalities span several
 zones.
 
+In South Tyrol either the Italian or the German name works (`"Bolzano"` or
+`"Bozen"`), although DPC writes them as `"Bolzano/Bozen"` in the criticality
+bulletin and as `"Bolzano"` in the vigilance bulletin.
+
 ### Coverage check
 
 `await dpc.is_location_covered(Location(lat, lon))` returns whether the

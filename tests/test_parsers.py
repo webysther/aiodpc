@@ -314,6 +314,97 @@ def test_municipality_not_found_outside() -> None:
         )
 
 
+# Far from the default location, in Rome: zones found there are found by name
+SOUTH_TYROL = square(46.4, 11.2, 46.6, 11.5)
+ABRUZZO = square(42.2, 13.8, 42.4, 14.0)
+VICENZA = square(45.5, 11.5, 45.7, 11.7)
+LAZIO = square(41.5, 12.0, 42.3, 13.0)
+
+
+def vigilance_zone(
+    name: str, geometry: dict[str, Any], municipalities: list[str], level: int
+) -> dict[str, Any]:
+    """Return a vigilance feature."""
+    return {
+        "type": "Feature",
+        "geometry": geometry,
+        "properties": {
+            "Nome_Zona": name,
+            "comuni": municipalities,
+            "id_classificazione": level,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "municipality", ["Bolzano", "Bozen", "Bolzano/Bozen", "  bozen "]
+)
+def test_bilingual_municipality(municipality: str) -> None:
+    """Test a municipality of South Tyrol by its Italian or German name.
+
+    The criticality bulletin writes "Bolzano/Bozen", the vigilance one "Bolzano".
+    """
+    criticality_zones = collection(
+        zone("Vicenza", VICENZA, ["Bolzano Vicentino"], "Elevata / ALLERTA ROSSA"),
+        zone("Alto Adige", SOUTH_TYROL, ["Merano/Meran", "Bolzano/Bozen"]),
+        zone("Bacini di Roma", LAZIO, ["Roma"]),
+    )
+    vigilance_zones = collection(
+        vigilance_zone("Vicenza", VICENZA, ["Bolzano Vicentino"], 5),
+        vigilance_zone("Alto Adige", SOUTH_TYROL, ["Merano", "Bolzano"], 3),
+        vigilance_zone("Lazio", LAZIO, ["Roma"], 2),
+    )
+
+    assert criticality(criticality_zones, municipality=municipality).zone == (
+        "Alto Adige"
+    )
+    assert vigilance(vigilance_zones, municipality=municipality).zone == "Alto Adige"
+
+
+@pytest.mark.parametrize(
+    ("municipality", "listed"),
+    [
+        ("Rasun-Anterselva", "Rasun Anterselva"),
+        ("Salorno sulla strada del vino", "Salorno"),
+        ("Völs am Schlern", "Fi allo Sciliar"),
+    ],
+)
+def test_municipality_written_differently(municipality: str, listed: str) -> None:
+    """Test municipalities that the vigilance bulletin writes differently."""
+    geojson = collection(
+        vigilance_zone("Alto Adige", SOUTH_TYROL, [listed], 3),
+        vigilance_zone("Lazio", LAZIO, ["Roma"], 2),
+    )
+
+    assert vigilance(geojson, municipality=municipality).zone == "Alto Adige"
+
+
+@pytest.mark.parametrize(
+    ("municipality", "south_tyrol_alert", "abruzzo_alert", "expected"),
+    [
+        # Listed as written in Abruzzo: South Tyrol is not a candidate
+        ("Corvara", "ALLERTA ROSSA", "ALLERTA GIALLA", "Abruzzo"),
+        # Its other names do not include the Corvara of Abruzzo
+        ("Corvara in Badia", "ALLERTA GIALLA", "ALLERTA ROSSA", "Alto Adige"),
+    ],
+)
+def test_municipality_as_written_first(
+    municipality: str, south_tyrol_alert: str, abruzzo_alert: str, expected: str
+) -> None:
+    """Test that a name listed as written wins over the other names."""
+    geojson = collection(
+        zone(
+            "Alto Adige",
+            SOUTH_TYROL,
+            ["Corvara in Badia/Corvara"],
+            f"Ordinaria / {south_tyrol_alert}",
+        ),
+        zone("Abruzzo", ABRUZZO, ["Corvara"], f"Ordinaria / {abruzzo_alert}"),
+    )
+
+    assert criticality(geojson, municipality=municipality).zone == expected
+
+
 def test_unusual_features_are_skipped() -> None:
     """Test features without geometry, area or municipalities."""
     geojson = collection(

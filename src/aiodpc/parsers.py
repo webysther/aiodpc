@@ -28,6 +28,7 @@ from .models import (
     RiskType,
     VigilanceDay,
 )
+from .municipalities import municipality_names, normalize
 from .urls import criticality_preview_url, vigilance_preview_url
 
 _LOGGER = logging.getLogger(__name__)
@@ -267,8 +268,33 @@ def _municipalities(properties: Mapping[str, Any]) -> list[str]:
     return []
 
 
-def _normalize(name: str) -> str:
-    return " ".join(name.split()).casefold()
+def _listing(features: list[_Feature], municipality: str) -> list[_Feature]:
+    """Return the features whose municipalities include ``municipality``.
+
+    The name is looked up as written first, ignoring case and spacing. Only when
+    no zone lists it are its other names tried (see :mod:`aiodpc.municipalities`):
+    "Bozen" finds "Bolzano/Bozen" and "Bolzano", while "Corvara" stays the
+    municipality of Abruzzo and not "Corvara in Badia/Corvara".
+    """
+    wanted = normalize(municipality)
+    listing = [
+        feature
+        for feature in features
+        if any(
+            normalize(name) == wanted for name in _municipalities(feature.properties)
+        )
+    ]
+    if listing:
+        return listing
+    names = municipality_names(municipality)
+    return [
+        feature
+        for feature in features
+        if any(
+            names & municipality_names(name)
+            for name in _municipalities(feature.properties)
+        )
+    ]
 
 
 def _select_zone(
@@ -278,22 +304,18 @@ def _select_zone(
 ) -> _Zone:
     """Return the zone of a location.
 
-    With a municipality, the zones listing it are candidates and the one with
-    the highest level wins (the first one on ties); its name is replaced by
-    the name of the candidate containing the coordinates, if any. Without a
-    municipality, or when no zone lists it, the zone containing the
-    coordinates is used.
+    With a municipality, the zones listing it (see :func:`_listing`) are
+    candidates and the one with the highest level wins (the first one on ties);
+    its name is replaced by the name of the candidate containing the
+    coordinates, if any. Without a municipality, or when no zone lists it, the
+    zone containing the coordinates is used.
     """
     municipality = location.municipality
     if municipality and municipality.strip():
-        wanted = _normalize(municipality)
         best: _Feature | None = None
         best_level = 0
         point_zone_name = ""
-        for feature in features:
-            names = _municipalities(feature.properties)
-            if not any(_normalize(name) == wanted for name in names):
-                continue
+        for feature in _listing(features, municipality):
             if not point_zone_name and _contains(feature, location):
                 point_zone_name = _zone_name(feature.properties)
             feature_level = level(feature.properties)
