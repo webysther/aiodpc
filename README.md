@@ -188,6 +188,11 @@ bulletin and as `"Bolzano"` in the vigilance bulletin.
 coordinates are inside a DPC alert zone, for example to validate a
 configuration.
 
+`await dpc.get_alert_zone(Location(lat, lon))` returns the alert zone of the
+coordinates with its municipalities (`zone.name`, `zone.municipalities`), for
+example to let a user pick a municipality, and raises `DpcLocationError` when
+the coordinates are in no zone.
+
 ### Errors
 
 All errors derive from `DpcError`:

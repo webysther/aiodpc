@@ -15,6 +15,7 @@ from .discovery import BulletinIdSource, MapPageIdSource
 from .exceptions import DpcConnectionError, DpcError, DpcParseError
 from .maps import CriticalityMap, VigilanceMap
 from .models import (
+    AlertZone,
     BulletinKind,
     CriticalityBulletin,
     Location,
@@ -25,6 +26,7 @@ from .parsers import (
     check_phenomena_distance,
     end_of_day,
     location_in_zones,
+    parse_alert_zone,
     parse_criticality_id,
     parse_vigilance_id,
 )
@@ -263,6 +265,25 @@ class DpcClient:
                 except DpcError as err:
                     errors.append(err)
         raise errors[0]
+
+    async def get_alert_zone(self, location: Location) -> AlertZone:
+        """Return the alert zone of a location, with its municipalities.
+
+        It is the zone of the latest criticality bulletin containing the
+        coordinates, for example to offer the municipalities of the place when
+        configuring it. One file of the bulletin is downloaded.
+
+        Raises :class:`DpcLocationError` when the location is in no zone, or
+        :class:`DpcConnectionError` or :class:`DpcParseError`.
+        """
+        bulletin_id = await self.latest_bulletin_id(BulletinKind.CRITICALITY)
+        try:
+            geojson = await self._fetch_json(criticality_geojson_url(bulletin_id, 0))
+        except DpcConnectionError:
+            # The first day of a bulletin may already be gone: the zones are
+            # the same on the second day
+            geojson = await self._fetch_json(criticality_geojson_url(bulletin_id, 1))
+        return parse_alert_zone(geojson, location)
 
     async def get_criticality_file(
         self, bulletin_id: str | None = None, offset: int = 0

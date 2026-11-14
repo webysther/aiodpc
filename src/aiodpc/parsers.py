@@ -19,6 +19,7 @@ from .exceptions import DpcLocationError, DpcParseError
 from .geo import calculate_initial_compass_bearing, distance_km, point_in_area
 from .models import (
     AlertLevel,
+    AlertZone,
     CriticalityDay,
     Location,
     Phenomenon,
@@ -384,6 +385,23 @@ def location_in_zones(geojson: object, location: Location) -> bool:
     ``geojson`` is the decoded GeoJSON or its :class:`GeoJsonFeatures`.
     """
     return any(_contains(item, location) for item in _features(geojson))
+
+
+def parse_alert_zone(geojson: object, location: Location) -> AlertZone:
+    """Return the alert zone of a criticality GeoJSON containing a location.
+
+    ``geojson`` is the decoded GeoJSON or its :class:`GeoJsonFeatures`; the
+    municipality of the location is not used. Raises
+    :class:`aiodpc.DpcLocationError` when the location is in no zone.
+    """
+    for feature in _features(geojson):
+        if _contains(feature, location):
+            return AlertZone(
+                name=_zone_name(feature.properties),
+                municipalities=tuple(_municipalities(feature.properties)),
+            )
+    msg = "The location is not inside any DPC alert zone"
+    raise DpcLocationError(msg)
 
 
 def _risk_assessment(risk_type: RiskType, value: object) -> RiskAssessment:

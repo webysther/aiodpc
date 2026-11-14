@@ -173,6 +173,23 @@ class Location:
 
 
 @dataclass(frozen=True, slots=True)
+class AlertZone:
+    """A DPC alert zone: its name and the municipalities it spans."""
+
+    name: str
+    """Name of the zone, e.g. ``"Bacini di Roma"``."""
+    municipalities: tuple[str, ...]
+    """Municipalities of the zone as DPC writes them, e.g. ``"Bolzano/Bozen"``.
+
+    A municipality that spans several zones is listed in each of them.
+    """
+
+    def __str__(self) -> str:
+        """Return the name of the zone."""
+        return self.name
+
+
+@dataclass(frozen=True, slots=True)
 class RiskAssessment:
     """The alert level of one risk type, e.g. hydrogeological: yellow."""
 

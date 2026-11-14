@@ -13,6 +13,7 @@ from aiodpc import (
     CRITICALITY_PAGE_URL,
     VIGILANCE_PAGE_URL,
     AlertLevel,
+    AlertZone,
     BulletinKind,
     DpcClient,
     DpcConnectionError,
@@ -532,3 +533,42 @@ async def test_real_bulletin_served(client: DpcClient, dpc: FakeDpc) -> None:
 
     assert bulletin.id == "20261113_1434"
     assert [day.zone for day in bulletin] == ["Bacini di Roma"] * 2
+
+
+async def test_alert_zone(client: DpcClient, dpc: FakeDpc) -> None:
+    """Test the alert zone of a location, with its municipalities."""
+    serve_criticality(dpc)
+
+    zone = await client.get_alert_zone(ROME)
+
+    assert zone == AlertZone("Bacini di Roma", ("Fiumicino", "Roma", "Tivoli"))
+    assert str(zone) == "Bacini di Roma"
+    assert dpc.requests == [CRITICALITY_PAGE_URL, TODAY_URL]
+
+
+async def test_alert_zone_second_day(client: DpcClient, dpc: FakeDpc) -> None:
+    """Test that the second day is used when the first one is gone."""
+    serve_criticality(dpc)
+    dpc.add(TODAY_URL, status=404)
+
+    zone = await client.get_alert_zone(ROME)
+
+    assert zone.name == "Bacini di Roma"
+    assert dpc.requests[-1] == TOMORROW_URL
+
+
+async def test_alert_zone_location_outside(client: DpcClient, dpc: FakeDpc) -> None:
+    """Test that a location outside every zone raises a location error."""
+    serve_criticality(dpc)
+
+    with pytest.raises(DpcLocationError):
+        await client.get_alert_zone(PARIS)
+
+
+async def test_alert_zone_unreachable(client: DpcClient, dpc: FakeDpc) -> None:
+    """Test that a connection error is raised when DPC is unreachable."""
+    dpc.unresolvable.add("raw.githubusercontent.com")
+    serve_criticality(dpc)
+
+    with pytest.raises(DpcConnectionError):
+        await client.get_alert_zone(ROME)

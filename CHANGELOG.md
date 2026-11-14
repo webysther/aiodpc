@@ -5,6 +5,15 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.4.0] - Unreleased
+
+### Added
+
+- `DpcClient.get_alert_zone(location)` returns the `AlertZone` of a location:
+  its name and its municipalities, for example to let a user pick a
+  municipality. It raises `DpcLocationError` when the location is in no zone.
+- `aiodpc.parsers.parse_alert_zone()`.
+
 ## [0.3.0] - 2026-11-14
 
 Several places now cost a single download: get the bulletin of the whole of
@@ -124,6 +133,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.4.0]: https://github.com/webysther/aiodpc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/webysther/aiodpc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/webysther/aiodpc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/webysther/aiodpc/compare/v0.1.0...v0.2.0

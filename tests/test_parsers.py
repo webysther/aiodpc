@@ -21,6 +21,7 @@ from aiodpc.parsers import (
     Assessment,
     end_of_day,
     location_in_zones,
+    parse_alert_zone,
     parse_assessment,
     parse_criticality_day,
     parse_criticality_id,
@@ -620,3 +621,21 @@ def test_phenomena_unexpected_format() -> None:
     """Test that unexpected phenomena data raises a parse error."""
     with pytest.raises(DpcParseError):
         parse_phenomena({}, location=ROME, within_km=50)
+
+
+def test_alert_zone_of_a_location() -> None:
+    """Test the zone containing a location; its municipality is not used."""
+    geojson = load_json("criticality_today.json")
+
+    zone = parse_alert_zone(geojson, Location(LATITUDE, LONGITUDE, "Como"))
+
+    assert (zone.name, zone.municipalities) == (
+        "Bacini di Roma",
+        ("Fiumicino", "Roma", "Tivoli"),
+    )
+
+
+def test_alert_zone_outside() -> None:
+    """Test that a location outside every zone raises a location error."""
+    with pytest.raises(DpcLocationError):
+        parse_alert_zone(load_json("criticality_today.json"), PARIS)

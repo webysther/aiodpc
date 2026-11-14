@@ -25,6 +25,7 @@ from .exceptions import (
 from .maps import CriticalityMap, VigilanceMap
 from .models import (
     AlertLevel,
+    AlertZone,
     BulletinKind,
     CriticalityBulletin,
     CriticalityDay,
@@ -42,7 +43,7 @@ from .models import (
 )
 from .monitor import MonitoredLocation
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "ATTRIBUTION",
@@ -52,6 +53,7 @@ __all__ = [
     "ROME_TZ",
     "VIGILANCE_PAGE_URL",
     "AlertLevel",
+    "AlertZone",
     "BulletinIdSource",
     "BulletinKind",
     "CriticalityBulletin",
