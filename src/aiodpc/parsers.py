@@ -10,7 +10,7 @@ import datetime as dt
 import logging
 import math
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, NamedTuple
 
@@ -136,6 +136,17 @@ def parse_vigilance_id(bulletin_id: str) -> dt.date:
         raise ValueError(msg) from err
 
 
+def check_phenomena_distance(within_km: float) -> float:
+    """Return a distance to look for phenomena within, in km.
+
+    Raises ``ValueError`` unless it is a finite number, zero or more.
+    """
+    if not (math.isfinite(within_km) and within_km >= 0):
+        msg = f"Invalid phenomena distance: {within_km}"
+        raise ValueError(msg)
+    return within_km
+
+
 def end_of_day(day: dt.date) -> dt.datetime:
     """Return the end of validity of the assessment of a day.
 
@@ -214,8 +225,31 @@ class _Zone:
     name: str
 
 
-def _features(geojson: object) -> list[_Feature]:
+@dataclass(frozen=True, slots=True)
+class GeoJsonFeatures:
+    """The features of a DPC GeoJSON file, checked once.
+
+    The parse functions accept it in place of the decoded GeoJSON, so that a
+    file read for many locations is checked only once.
+    """
+
+    items: tuple[_Feature, ...]
+
+    @classmethod
+    def of(cls, geojson: object) -> GeoJsonFeatures:
+        """Return the checked features of a decoded GeoJSON FeatureCollection.
+
+        Raises :class:`aiodpc.DpcParseError` when its shape is unexpected.
+        """
+        if isinstance(geojson, GeoJsonFeatures):
+            return geojson
+        return cls(_features(geojson))
+
+
+def _features(geojson: object) -> tuple[_Feature, ...]:
     """Return the features of a GeoJSON FeatureCollection, checking its shape."""
+    if isinstance(geojson, GeoJsonFeatures):
+        return geojson.items
     if not isinstance(geojson, Mapping):
         msg = "DPC data is not a GeoJSON object"
         raise DpcParseError(msg)
@@ -236,7 +270,7 @@ def _features(geojson: object) -> list[_Feature]:
             msg = "DPC GeoJSON feature has invalid properties or geometry"
             raise DpcParseError(msg)
         result.append(_Feature(properties, geometry))
-    return result
+    return tuple(result)
 
 
 def _contains(feature: _Feature, location: Location) -> bool:
@@ -268,7 +302,7 @@ def _municipalities(properties: Mapping[str, Any]) -> list[str]:
     return []
 
 
-def _listing(features: list[_Feature], municipality: str) -> list[_Feature]:
+def _listing(features: Sequence[_Feature], municipality: str) -> list[_Feature]:
     """Return the features whose municipalities include ``municipality``.
 
     The name is looked up as written first, ignoring case and spacing. Only when
@@ -298,7 +332,7 @@ def _listing(features: list[_Feature], municipality: str) -> list[_Feature]:
 
 
 def _select_zone(
-    features: list[_Feature],
+    features: Sequence[_Feature],
     location: Location,
     level: Callable[[Mapping[str, Any]], int],
 ) -> _Zone:
@@ -345,7 +379,10 @@ def _precipitation(properties: Mapping[str, Any]) -> Precipitation:
 
 
 def location_in_zones(geojson: object, location: Location) -> bool:
-    """Return whether a location is inside any zone of a bulletin GeoJSON."""
+    """Return whether a location is inside any zone of a bulletin GeoJSON.
+
+    ``geojson`` is the decoded GeoJSON or its :class:`GeoJsonFeatures`.
+    """
     return any(_contains(item, location) for item in _features(geojson))
 
 
@@ -359,6 +396,7 @@ def parse_criticality_day(
 ) -> CriticalityDay:
     """Parse the criticality GeoJSON of a bulletin day for a location.
 
+    ``geojson`` is the decoded GeoJSON or its :class:`GeoJsonFeatures`.
     Raises :class:`aiodpc.DpcParseError` for unexpected data and
     :class:`aiodpc.DpcLocationError` when the location is in no zone.
     """
@@ -394,6 +432,7 @@ def parse_vigilance_day(
 ) -> VigilanceDay:
     """Parse the vigilance GeoJSON of a bulletin day for a location.
 
+    ``geojson`` is the decoded GeoJSON or its :class:`GeoJsonFeatures`.
     ``phenomena`` are attached to the day as they are (see
     :func:`parse_phenomena`).
 
@@ -443,6 +482,7 @@ def parse_phenomena(
 ) -> tuple[Phenomenon, ...]:
     """Parse the phenomena GeoJSON, keeping those within ``within_km``.
 
+    ``geojson`` is the decoded GeoJSON or its :class:`GeoJsonFeatures`.
     Phenomena keep the order of the file. Codes unknown to aiodpc are kept,
     with ``category`` and ``description`` set to ``None``.
     """

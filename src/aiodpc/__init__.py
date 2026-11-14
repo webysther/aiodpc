@@ -22,6 +22,7 @@ from .exceptions import (
     DpcNoDataError,
     DpcParseError,
 )
+from .maps import CriticalityMap, VigilanceMap
 from .models import (
     AlertLevel,
     BulletinKind,
@@ -41,7 +42,7 @@ from .models import (
 )
 from .monitor import MonitoredLocation
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "ATTRIBUTION",
@@ -55,6 +56,7 @@ __all__ = [
     "BulletinKind",
     "CriticalityBulletin",
     "CriticalityDay",
+    "CriticalityMap",
     "Day",
     "DpcClient",
     "DpcConnectionError",
@@ -74,6 +76,7 @@ __all__ = [
     "TextFetcher",
     "VigilanceBulletin",
     "VigilanceDay",
+    "VigilanceMap",
     "__version__",
     "rome_date",
 ]

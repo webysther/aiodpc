@@ -5,6 +5,38 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.3.0] - Unreleased
+
+Several places now cost a single download: get the bulletin of the whole of
+Italy once, then read it at each place.
+
+```python
+criticality = await dpc.get_criticality_map()
+vigilance = await dpc.get_vigilance_map()
+
+for place in (home, office):
+    print(criticality.at(place).today)
+    print(vigilance.at(place, phenomena_within_km=20).today)
+```
+
+### Added
+
+- `DpcClient.get_criticality_map()` and `DpcClient.get_vigilance_map()` return
+  a `CriticalityMap` or a `VigilanceMap`: the files of a bulletin, downloaded
+  once. Their `at(location)` returns the bulletin of a location without any
+  request; on the vigilance map, each reading takes its own
+  `phenomena_within_km`. A location outside every zone raises
+  `DpcLocationError` for that location only.
+- `aiodpc.parsers.GeoJsonFeatures`: a DPC GeoJSON file checked once. The parse
+  functions accept it in place of the decoded GeoJSON.
+- `aiodpc.parsers.check_phenomena_distance()`.
+
+### Changed
+
+- `get_criticality()` and `get_vigilance()` read a map, with the same results.
+- The JSON files are decoded in a worker thread: they are several MB each, and
+  decoding them blocked the event loop.
+
 ## [0.2.1] - 2026-11-14
 
 ### Fixed
@@ -92,6 +124,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.3.0]: https://github.com/webysther/aiodpc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/webysther/aiodpc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/webysther/aiodpc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/webysther/aiodpc/releases/tag/v0.1.0

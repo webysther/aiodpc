@@ -128,6 +128,26 @@ The criticality bulletin is published every day by 16:00 (Europe/Rome) and may
 be re-issued later the same day ("Aggiornamento"); the vigilance bulletin by
 15:00.
 
+#### Several places
+
+Each bulletin is the same file for the whole of Italy (about 18 MB a day for
+both). For several places, download it once with `get_criticality_map()` or
+`get_vigilance_map()` and read it at each place with `at()`, which makes no
+request:
+
+```python
+criticality = await dpc.get_criticality_map()
+vigilance = await dpc.get_vigilance_map()
+
+for place in (home, office):
+    print(criticality.at(place).today)
+    print(vigilance.at(place, phenomena_within_km=20).today)
+```
+
+`at()` raises `DpcLocationError` for a place outside every zone without
+affecting the others. A map holds the decoded files (tens of MB): keep it only
+while reading it. `at()` does no I/O, so it can also run in an executor.
+
 ### Raw DPC files (optional)
 
 ```bash

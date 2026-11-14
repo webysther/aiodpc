@@ -6,7 +6,6 @@ import asyncio
 import datetime as dt
 import json
 import logging
-import math
 from typing import TYPE_CHECKING, Any, Self
 
 import aiohttp
@@ -14,22 +13,19 @@ import aiohttp
 from .const import DEFAULT_PHENOMENA_RADIUS_KM, DEFAULT_REQUEST_TIMEOUT, ROME_TZ
 from .discovery import BulletinIdSource, MapPageIdSource
 from .exceptions import DpcConnectionError, DpcError, DpcParseError
+from .maps import CriticalityMap, VigilanceMap
 from .models import (
     BulletinKind,
     CriticalityBulletin,
-    CriticalityDay,
     Location,
     VigilanceBulletin,
-    VigilanceDay,
 )
 from .monitor import MonitoredLocation
 from .parsers import (
+    check_phenomena_distance,
     end_of_day,
     location_in_zones,
-    parse_criticality_day,
     parse_criticality_id,
-    parse_phenomena,
-    parse_vigilance_day,
     parse_vigilance_id,
 )
 from .urls import (
@@ -59,7 +55,9 @@ class DpcClient:
 
     - :meth:`location`: answers "is there a risk here?" and "which one?".
     - :meth:`get_criticality` and :meth:`get_vigilance`: the bulletins for a
-      location, day by day, parsed leniently.
+      location, day by day, parsed leniently. For several locations,
+      :meth:`get_criticality_map` and :meth:`get_vigilance_map` download the
+      bulletins once and read them at each location.
     - :meth:`get_criticality_file` and the other ``*_file`` methods: the raw
       DPC files as strict DTOs (optional, ``aiodpc[schema]``).
 
@@ -143,10 +141,32 @@ class DpcClient:
 
         ``bulletin_id`` defaults to the latest bulletin. With ``skip_expired``,
         days already over at ``now`` (default: the current time) are not
-        downloaded and are missing from the bulletin.
+        downloaded and are missing from the bulletin. For several locations,
+        read a :meth:`get_criticality_map` instead: it downloads once.
 
         Raises :class:`DpcConnectionError`, :class:`DpcParseError` or
         :class:`DpcLocationError`; ``ValueError`` for an invalid bulletin ID.
+        """
+        criticality_map = await self.get_criticality_map(
+            bulletin_id=bulletin_id, skip_expired=skip_expired, now=now
+        )
+        return criticality_map.at(location)
+
+    async def get_criticality_map(
+        self,
+        *,
+        bulletin_id: str | None = None,
+        skip_expired: bool = True,
+        now: dt.datetime | None = None,
+    ) -> CriticalityMap:
+        """Return the criticality bulletin of Italy, to read at any location.
+
+        Its files are downloaded once; :meth:`CriticalityMap.at` then reads
+        them for each location without any request. The arguments are as in
+        :meth:`get_criticality`.
+
+        Raises :class:`DpcConnectionError` or :class:`DpcParseError`;
+        ``ValueError`` for an invalid bulletin ID.
         """
         if bulletin_id is None:
             bulletin_id = await self.latest_bulletin_id(BulletinKind.CRITICALITY)
@@ -157,12 +177,11 @@ class DpcClient:
             skip_expired=skip_expired,
             now=now,
         )
-        days = await _gather(
-            self._criticality_day(bulletin_id, offset, location) for offset in offsets
+        files = await _gather(
+            self._fetch_json(criticality_geojson_url(bulletin_id, offset))
+            for offset in offsets
         )
-        return CriticalityBulletin(
-            id=bulletin_id, published=published, days=tuple(days)
-        )
+        return CriticalityMap(bulletin_id, zip(offsets, files, strict=True))
 
     async def get_vigilance(
         self,
@@ -177,24 +196,46 @@ class DpcClient:
 
         Each day includes the phenomena within ``phenomena_within_km`` of the
         coordinates. The other arguments are as in :meth:`get_criticality`.
+        For several locations, read a :meth:`get_vigilance_map` instead.
 
         Raises :class:`DpcConnectionError`, :class:`DpcParseError` or
         :class:`DpcLocationError`; ``ValueError`` for invalid arguments.
         """
-        if not (math.isfinite(phenomena_within_km) and phenomena_within_km >= 0):
-            msg = f"Invalid phenomena distance: {phenomena_within_km}"
-            raise ValueError(msg)
+        check_phenomena_distance(phenomena_within_km)
+        vigilance_map = await self.get_vigilance_map(
+            bulletin_id=bulletin_id, skip_expired=skip_expired, now=now
+        )
+        return vigilance_map.at(location, phenomena_within_km=phenomena_within_km)
+
+    async def get_vigilance_map(
+        self,
+        *,
+        bulletin_id: str | None = None,
+        skip_expired: bool = True,
+        now: dt.datetime | None = None,
+    ) -> VigilanceMap:
+        """Return the weather vigilance bulletin of Italy, to read anywhere.
+
+        Its files are downloaded once; :meth:`VigilanceMap.at` then reads them
+        for each location, with its own distance for the phenomena. The
+        arguments are as in :meth:`get_criticality`.
+
+        Raises :class:`DpcConnectionError` or :class:`DpcParseError`;
+        ``ValueError`` for an invalid bulletin ID.
+        """
         if bulletin_id is None:
             bulletin_id = await self.latest_bulletin_id(BulletinKind.VIGILANCE)
         published = parse_vigilance_id(bulletin_id)
         offsets = _offsets(
             published, len(VIGILANCE_DAYS), skip_expired=skip_expired, now=now
         )
-        days = await _gather(
-            self._vigilance_day(bulletin_id, offset, location, phenomena_within_km)
+        files = await _gather(
+            self._fetch_json(url(bulletin_id, offset))
             for offset in offsets
+            for url in (vigilance_geojson_url, phenomena_geojson_url)
         )
-        return VigilanceBulletin(id=bulletin_id, date=published, days=tuple(days))
+        zones, phenomena = files[::2], files[1::2]
+        return VigilanceMap(bulletin_id, zip(offsets, zones, phenomena, strict=True))
 
     async def is_location_covered(self, location: Location) -> bool:
         """Return whether a location is inside a DPC alert zone.
@@ -295,35 +336,6 @@ class DpcClient:
             parse_vigilance_id(bulletin_id)
         return decode(await self._request(url(bulletin_id, offset)))
 
-    async def _criticality_day(
-        self, bulletin_id: str, offset: int, location: Location
-    ) -> CriticalityDay:
-        geojson = await self._fetch_json(criticality_geojson_url(bulletin_id, offset))
-        return parse_criticality_day(
-            geojson, bulletin_id=bulletin_id, offset=offset, location=location
-        )
-
-    async def _vigilance_day(
-        self,
-        bulletin_id: str,
-        offset: int,
-        location: Location,
-        phenomena_within_km: float,
-    ) -> VigilanceDay:
-        zones, phenomena = await _gather(
-            self._fetch_json(url(bulletin_id, offset))
-            for url in (vigilance_geojson_url, phenomena_geojson_url)
-        )
-        return parse_vigilance_day(
-            zones,
-            bulletin_id=bulletin_id,
-            offset=offset,
-            location=location,
-            phenomena=parse_phenomena(
-                phenomena, location=location, within_km=phenomena_within_km
-            ),
-        )
-
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None:
             self._session = aiohttp.ClientSession()
@@ -355,9 +367,13 @@ class DpcClient:
         return (await self._request(url)).decode("utf-8", errors="replace")
 
     async def _fetch_json(self, url: str) -> object:
+        """Return the decoded JSON at a URL, decoded in a worker thread.
+
+        The bulletin files are several MB, too large to decode in the event loop.
+        """
         body = await self._request(url)
         try:
-            data: object = json.loads(body)
+            data: object = await asyncio.to_thread(json.loads, body)
         except ValueError as err:
             msg = f"Invalid JSON from {url}"
             raise DpcParseError(msg) from err
