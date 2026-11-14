@@ -1,0 +1,115 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aiodpc"
+dynamic = ["version"]
+description = "Async client for the Italian Civil Protection Department (DPC) alert and weather vigilance bulletins"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Webysther Sperandio" }]
+requires-python = ">=3.13"
+keywords = [
+  "allerta",
+  "alert",
+  "asyncio",
+  "civil protection",
+  "dpc",
+  "italy",
+  "protezione civile",
+  "weather",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: AsyncIO",
+  "Intended Audience :: Developers",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Atmospheric Science",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+]
+dependencies = [
+  "aiohttp>=3.10",
+  "geojson-utils>=0.0.3,<0.1",
+  # zoneinfo needs a time zone database; Windows has none built in.
+  "tzdata; sys_platform == 'win32'",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "pytest-asyncio>=1.0",
+  "pytest-cov>=6.0",
+  "ruff==0.14.4",
+  # Certificates of the local HTTPS server standing in for DPC in the tests
+  "trustme>=1.2",
+]
+
+[tool.hatch.version]
+path = "src/aiodpc/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiodpc"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE"]
+
+[tool.ruff]
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812", # conflicts with the formatter
+  "D203",   # incompatible with D211
+  "D213",   # incompatible with D212
+  "PLR0913", # keyword-only options on public methods
+]
+
+[tool.ruff.lint.flake8-type-checking]
+# Keep the imports of dataclass annotations at runtime (typing.get_type_hints).
+runtime-evaluated-decorators = ["dataclasses.dataclass"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "PLR2004", # magic values in assertions
+  "S101",    # assert
+  "SLF001",  # private access to test internals
+]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src", "tests"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+# geojson-utils ships type hints but no py.typed marker.
+module = ["geojson_utils", "geojson_utils.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["aiodpc"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 95
+exclude_also = ["if TYPE_CHECKING:", "\\.\\.\\."]
