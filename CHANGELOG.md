@@ -5,7 +5,7 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-11-14
 
 The API now has three levels: ask whether a place has a risk, read the
 bulletins day by day, or get the raw DPC files.
