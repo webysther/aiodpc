@@ -5,7 +5,7 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
-## [0.4.0] - Unreleased
+## [0.4.0] - 2026-11-14
 
 ### Added
 
