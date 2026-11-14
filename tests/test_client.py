@@ -18,8 +18,9 @@ from aiodpc import (
     DpcConnectionError,
     DpcLocationError,
     DpcParseError,
+    Location,
     PhenomenonCategory,
-    Risk,
+    Precipitation,
 )
 from aiodpc.urls import (
     criticality_geojson_url,
@@ -31,8 +32,9 @@ from . import (
     CRIT_ID,
     LATITUDE,
     LONGITUDE,
-    OUTSIDE,
+    PARIS,
     PUBLICATION_DAY,
+    ROME,
     VIGI_ID,
     load_fixture,
     rome,
@@ -49,9 +51,9 @@ TODAY_URL = criticality_geojson_url(CRIT_ID, 0)
 TOMORROW_URL = criticality_geojson_url(CRIT_ID, 1)
 
 
-def expires(bulletin: CriticalityBulletin) -> dict[dt.date, dt.datetime]:
-    """Return the expiration of each day of a bulletin."""
-    return {day.date: day.expires for day in bulletin.days}
+def valid_until(bulletin: CriticalityBulletin) -> dict[dt.date, dt.datetime]:
+    """Return the end of validity of each day of a bulletin."""
+    return {day.date: day.valid_until for day in bulletin}
 
 
 # The criticality bulletin covers "fino alle 24.00 del giorno di emissione (oggi) e
@@ -63,35 +65,35 @@ async def test_criticality_on_publication_day(client: DpcClient, dpc: FakeDpc) -
     """Test the bulletin issued on 2026-11-14, on that day."""
     serve_criticality(dpc)
 
-    bulletin = await client.get_criticality(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+    bulletin = await client.get_criticality(ROME, now=PUBLICATION_DAY)
 
     assert bulletin.id == CRIT_ID
     assert bulletin.published == rome(2026, 11, 14, 14, 30)
     assert [day.offset for day in bulletin.days] == [0, 1]
-    assert expires(bulletin) == {
+    assert valid_until(bulletin) == {
         dt.date(2026, 11, 14): rome(2026, 11, 15),
         dt.date(2026, 11, 15): rome(2026, 11, 16),
     }
-    today = bulletin.today(PUBLICATION_DAY)
+    today = bulletin.on(PUBLICATION_DAY)
     assert today is bulletin.days[0]
-    assert today.zone_name == "Bacini di Roma"
-    assert today.risks[Risk.THUNDERSTORMS].level is AlertLevel.YELLOW
-    tomorrow = bulletin.tomorrow(PUBLICATION_DAY)
+    assert today.zone == "Bacini di Roma"
+    assert today.thunderstorms.level is AlertLevel.YELLOW
+    tomorrow = bulletin.on(dt.date(2026, 11, 15))
     assert tomorrow is bulletin.days[1]
-    assert tomorrow.max_level is AlertLevel.ORANGE
+    assert tomorrow.level is AlertLevel.ORANGE
 
 
 async def test_criticality_after_midnight(client: DpcClient, dpc: FakeDpc) -> None:
     """Test that after midnight the second day answers for today, unchanged."""
     serve_criticality(dpc)
-    bulletin = await client.get_criticality(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+    bulletin = await client.get_criticality(ROME, now=PUBLICATION_DAY)
 
     after_midnight = rome(2026, 11, 15, 0, 10)
-    today = bulletin.today(after_midnight)
+    today = bulletin.on(after_midnight)
 
     assert today is bulletin.days[1]
-    assert today.expires == rome(2026, 11, 16)
-    assert bulletin.tomorrow(after_midnight) is None
+    assert today.valid_until == rome(2026, 11, 16)
+    assert bulletin.on(dt.date(2026, 11, 16)) is None
 
 
 async def test_criticality_started_before_the_new_bulletin(
@@ -101,11 +103,11 @@ async def test_criticality_started_before_the_new_bulletin(
     serve_criticality(dpc)
     morning = rome(2026, 11, 15, 8)
 
-    bulletin = await client.get_criticality(LATITUDE, LONGITUDE, now=morning)
+    bulletin = await client.get_criticality(ROME, now=morning)
 
     assert TODAY_URL not in dpc.requests
-    assert expires(bulletin) == {dt.date(2026, 11, 15): rome(2026, 11, 16)}
-    assert bulletin.today(morning) is bulletin.days[0]
+    assert valid_until(bulletin) == {dt.date(2026, 11, 15): rome(2026, 11, 16)}
+    assert bulletin.on(morning) is bulletin.days[0]
     assert bulletin.days[0].offset == 1
 
 
@@ -113,12 +115,10 @@ async def test_criticality_next_bulletin(client: DpcClient, dpc: FakeDpc) -> Non
     """Test that the next day's bulletin covers the next two days."""
     serve_criticality(dpc, crit_id="20261115_1500")
 
-    bulletin = await client.get_criticality(
-        LATITUDE, LONGITUDE, now=rome(2026, 11, 15, 15, 30)
-    )
+    bulletin = await client.get_criticality(ROME, now=rome(2026, 11, 15, 15, 30))
 
     assert bulletin.id == "20261115_1500"
-    assert expires(bulletin) == {
+    assert valid_until(bulletin) == {
         dt.date(2026, 11, 15): rome(2026, 11, 16),
         dt.date(2026, 11, 16): rome(2026, 11, 17),
     }
@@ -129,15 +129,13 @@ async def test_criticality_old_bulletin(client: DpcClient, dpc: FakeDpc) -> None
     serve_criticality(dpc)
     later = rome(2026, 11, 17, 9)
 
-    bulletin = await client.get_criticality(
-        LATITUDE, LONGITUDE, bulletin_id=CRIT_ID, now=later
-    )
+    bulletin = await client.get_criticality(ROME, bulletin_id=CRIT_ID, now=later)
 
     assert bulletin.days == ()
     assert dpc.requests == []
 
     bulletin = await client.get_criticality(
-        LATITUDE, LONGITUDE, bulletin_id=CRIT_ID, skip_expired=False, now=later
+        ROME, bulletin_id=CRIT_ID, skip_expired=False, now=later
     )
 
     assert [day.date for day in bulletin.days] == [
@@ -148,16 +146,13 @@ async def test_criticality_old_bulletin(client: DpcClient, dpc: FakeDpc) -> None
 
 async def test_criticality_current_time(client: DpcClient, dpc: FakeDpc) -> None:
     """Test that the current time is used by default, naive times as Italian."""
-    bulletin = await client.get_criticality(
-        LATITUDE, LONGITUDE, bulletin_id="20200101_1430"
-    )
+    bulletin = await client.get_criticality(ROME, bulletin_id="20200101_1430")
     assert bulletin.days == ()
     assert dpc.requests == []
 
     serve_criticality(dpc)
     bulletin = await client.get_criticality(
-        LATITUDE,
-        LONGITUDE,
+        ROME,
         now=dt.datetime(2026, 11, 15, 23, 59),  # noqa: DTZ001
     )
     assert [day.date for day in bulletin.days] == [dt.date(2026, 11, 15)]
@@ -168,62 +163,58 @@ async def test_criticality_municipality(client: DpcClient, dpc: FakeDpc) -> None
     serve_criticality(dpc)
 
     bulletin = await client.get_criticality(
-        LATITUDE, LONGITUDE, municipality="Como", now=PUBLICATION_DAY
+        Location(LATITUDE, LONGITUDE, municipality="Como"), now=PUBLICATION_DAY
     )
 
-    assert {day.zone_name for day in bulletin.days} == {"Lario e Prealpi occidentali"}
-    assert {day.max_level for day in bulletin.days} == {AlertLevel.RED}
+    assert {day.zone for day in bulletin} == {"Lario e Prealpi occidentali"}
+    assert {day.level for day in bulletin} == {AlertLevel.RED}
 
 
 async def test_vigilance_on_publication_day(client: DpcClient, dpc: FakeDpc) -> None:
     """Test the vigilance bulletin issued on 2026-11-14, on that day."""
     serve_vigilance(dpc)
 
-    bulletin = await client.get_vigilance(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+    bulletin = await client.get_vigilance(ROME, now=PUBLICATION_DAY)
 
     assert bulletin.id == VIGI_ID
     assert bulletin.date == dt.date(2026, 11, 14)
-    assert [(day.date, day.level, day.expires) for day in bulletin.days] == [
-        (dt.date(2026, 11, 14), 2, rome(2026, 11, 15)),
-        (dt.date(2026, 11, 15), 3, rome(2026, 11, 16)),
-        (dt.date(2026, 11, 16), 1, rome(2026, 11, 17)),
+    assert [(day.date, day.precipitation, day.valid_until) for day in bulletin] == [
+        (dt.date(2026, 11, 14), Precipitation.LIGHT, rome(2026, 11, 15)),
+        (dt.date(2026, 11, 15), Precipitation.MODERATE, rome(2026, 11, 16)),
+        (dt.date(2026, 11, 16), Precipitation.NONE, rome(2026, 11, 17)),
     ]
     assert bulletin.days[2].image_url is None
-    today = bulletin.today(PUBLICATION_DAY)
+    today = bulletin.on(PUBLICATION_DAY)
     assert today is not None
     assert [item.code for item in today.phenomena] == [5]
     assert today.phenomena[0].category is PhenomenonCategory.PRECIPITATION
-    tomorrow = bulletin.tomorrow(PUBLICATION_DAY)
+    tomorrow = bulletin.on(dt.date(2026, 11, 15))
     assert tomorrow is not None
     assert [(item.code, item.direction) for item in tomorrow.phenomena] == [(40, "SW")]
     assert bulletin.days[2].phenomena == ()
 
 
-async def test_vigilance_radius_and_municipality(
+async def test_vigilance_distance_and_municipality(
     client: DpcClient, dpc: FakeDpc
 ) -> None:
-    """Test the phenomena radius and the municipality of the vigilance."""
+    """Test the phenomena distance and the municipality of the vigilance."""
     serve_vigilance(dpc)
 
     bulletin = await client.get_vigilance(
-        LATITUDE,
-        LONGITUDE,
-        municipality="Como",
-        phenomena_radius_km=300,
+        Location(LATITUDE, LONGITUDE, municipality="Como"),
+        phenomena_within_km=300,
         now=PUBLICATION_DAY,
     )
 
     assert [item.code for item in bulletin.days[0].phenomena] == [5, 41]
-    assert {day.level for day in bulletin.days} == {5}
+    assert {day.precipitation for day in bulletin} == {Precipitation.HEAVY}
 
 
 async def test_vigilance_after_midnight(client: DpcClient, dpc: FakeDpc) -> None:
     """Test a start after midnight with the vigilance bulletin of yesterday."""
     serve_vigilance(dpc)
 
-    bulletin = await client.get_vigilance(
-        LATITUDE, LONGITUDE, now=rome(2026, 11, 15, 0, 30)
-    )
+    bulletin = await client.get_vigilance(ROME, now=rome(2026, 11, 15, 0, 30))
 
     assert [day.offset for day in bulletin.days] == [1, 2]
     assert vigilance_geojson_url(VIGI_ID, 0) not in dpc.requests
@@ -264,7 +255,7 @@ async def test_custom_id_source(session: aiohttp.ClientSession, dpc: FakeDpc) ->
     serve_criticality(dpc)
     client = DpcClient(session, id_source=StaticIdSource(CRIT_ID))
 
-    bulletin = await client.get_criticality(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+    bulletin = await client.get_criticality(ROME, now=PUBLICATION_DAY)
 
     assert bulletin.id == CRIT_ID
     assert CRITICALITY_PAGE_URL not in dpc.requests
@@ -286,7 +277,7 @@ async def test_page_without_id(client: DpcClient, dpc: FakeDpc) -> None:
     dpc.add(CRITICALITY_PAGE_URL, body="<html>Manutenzione</html>")
 
     with pytest.raises(DpcParseError, match="No criticality bulletin ID"):
-        await client.get_criticality(LATITUDE, LONGITUDE)
+        await client.get_criticality(ROME)
 
 
 async def test_dns_error(client: DpcClient, dpc: FakeDpc) -> None:
@@ -317,7 +308,7 @@ async def test_http_error(client: DpcClient, dpc: FakeDpc, status: int) -> None:
     dpc.add(TOMORROW_URL, status=status)
 
     with pytest.raises(DpcConnectionError, match=f"HTTP status {status}") as err:
-        await client.get_criticality(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+        await client.get_criticality(ROME, now=PUBLICATION_DAY)
 
     assert isinstance(err.value.__cause__, aiohttp.ClientResponseError)
 
@@ -340,7 +331,7 @@ async def test_malformed_json(client: DpcClient, dpc: FakeDpc, body: bytes) -> N
     dpc.add(phenomena_geojson_url(VIGI_ID, 1), body=body)
 
     with pytest.raises(DpcParseError, match="Invalid JSON"):
-        await client.get_vigilance(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+        await client.get_vigilance(ROME, now=PUBLICATION_DAY)
 
 
 async def test_unexpected_json(client: DpcClient, dpc: FakeDpc) -> None:
@@ -349,7 +340,7 @@ async def test_unexpected_json(client: DpcClient, dpc: FakeDpc) -> None:
     dpc.add(TODAY_URL, body='{"error": "not found"}')
 
     with pytest.raises(DpcParseError):
-        await client.get_criticality(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+        await client.get_criticality(ROME, now=PUBLICATION_DAY)
 
 
 async def test_criticality_location_outside(client: DpcClient, dpc: FakeDpc) -> None:
@@ -357,7 +348,7 @@ async def test_criticality_location_outside(client: DpcClient, dpc: FakeDpc) -> 
     serve_criticality(dpc)
 
     with pytest.raises(DpcLocationError):
-        await client.get_criticality(*OUTSIDE, now=PUBLICATION_DAY)
+        await client.get_criticality(PARIS, now=PUBLICATION_DAY)
 
 
 async def test_vigilance_location_outside(client: DpcClient, dpc: FakeDpc) -> None:
@@ -365,39 +356,23 @@ async def test_vigilance_location_outside(client: DpcClient, dpc: FakeDpc) -> No
     serve_vigilance(dpc)
 
     with pytest.raises(DpcLocationError):
-        await client.get_vigilance(*OUTSIDE, now=PUBLICATION_DAY)
+        await client.get_vigilance(PARIS, now=PUBLICATION_DAY)
 
 
-@pytest.mark.parametrize(
-    ("latitude", "longitude", "options"),
-    [
-        (91.0, LONGITUDE, {}),
-        (LATITUDE, -180.5, {}),
-        (float("nan"), LONGITUDE, {}),
-        (LATITUDE, float("inf"), {}),
-        (LATITUDE, LONGITUDE, {"bulletin_id": "latest"}),
-    ],
-)
-async def test_invalid_arguments(
-    client: DpcClient,
-    dpc: FakeDpc,
-    latitude: float,
-    longitude: float,
-    options: dict[str, Any],
-) -> None:
-    """Test that invalid arguments raise ValueError before any request."""
-    with pytest.raises(ValueError, match="Invalid"):
-        await client.get_criticality(latitude, longitude, **options)
-    with pytest.raises(ValueError, match="Invalid"):
-        await client.get_vigilance(latitude, longitude, **options)
+async def test_invalid_bulletin_id(client: DpcClient, dpc: FakeDpc) -> None:
+    """Test that an invalid bulletin ID raises ValueError before any request."""
+    with pytest.raises(ValueError, match="Invalid criticality bulletin ID"):
+        await client.get_criticality(ROME, bulletin_id="latest")
+    with pytest.raises(ValueError, match="Invalid vigilance bulletin ID"):
+        await client.get_vigilance(ROME, bulletin_id="latest")
     assert dpc.requests == []
 
 
-@pytest.mark.parametrize("radius", [-1.0, float("nan")])
-async def test_invalid_radius(client: DpcClient, radius: float) -> None:
-    """Test that an invalid phenomena radius raises ValueError."""
-    with pytest.raises(ValueError, match="Invalid phenomena radius"):
-        await client.get_vigilance(LATITUDE, LONGITUDE, phenomena_radius_km=radius)
+@pytest.mark.parametrize("distance", [-1.0, float("nan")])
+async def test_invalid_phenomena_distance(client: DpcClient, distance: float) -> None:
+    """Test that an invalid phenomena distance raises ValueError."""
+    with pytest.raises(ValueError, match="Invalid phenomena distance"):
+        await client.get_vigilance(ROME, phenomena_within_km=distance)
 
 
 async def test_failure_cancels_the_other_downloads(
@@ -410,7 +385,7 @@ async def test_failure_cancels_the_other_downloads(
 
     async with asyncio.timeout(5):
         with pytest.raises(DpcConnectionError, match="HTTP status 404"):
-            await client.get_criticality(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
+            await client.get_criticality(ROME, now=PUBLICATION_DAY)
 
     assert TOMORROW_URL in dpc.requests
 
@@ -425,9 +400,7 @@ async def test_cancellation(client: DpcClient, dpc: FakeDpc) -> None:
 
     serve_vigilance(dpc)
     dpc.add(vigilance_geojson_url(VIGI_ID, 2), before=hang)
-    task = asyncio.create_task(
-        client.get_vigilance(LATITUDE, LONGITUDE, now=PUBLICATION_DAY)
-    )
+    task = asyncio.create_task(client.get_vigilance(ROME, now=PUBLICATION_DAY))
     await started.wait()
 
     task.cancel()
@@ -448,26 +421,20 @@ async def test_cancellation_is_not_swallowed(
     monkeypatch.setattr(client, "_request", cancelled)
 
     with pytest.raises(asyncio.CancelledError):
-        await client.get_criticality(
-            LATITUDE, LONGITUDE, bulletin_id=CRIT_ID, now=PUBLICATION_DAY
-        )
+        await client.get_criticality(ROME, bulletin_id=CRIT_ID, now=PUBLICATION_DAY)
 
 
-@pytest.mark.parametrize(
-    ("latitude", "longitude", "expected"),
-    [(LATITUDE, LONGITUDE, True), (*OUTSIDE, False)],
-)
+@pytest.mark.parametrize(("location", "expected"), [(ROME, True), (PARIS, False)])
 async def test_is_location_covered(
     client: DpcClient,
     dpc: FakeDpc,
-    latitude: float,
-    longitude: float,
+    location: Location,
     expected: bool,  # noqa: FBT001
 ) -> None:
     """Test the coverage of locations by the criticality zones."""
     serve_criticality(dpc)
 
-    assert await client.is_location_covered(latitude, longitude) is expected
+    assert await client.is_location_covered(location) is expected
     assert dpc.requests == [CRITICALITY_PAGE_URL, TODAY_URL]
 
 
@@ -479,7 +446,7 @@ async def test_is_location_covered_fallbacks(client: DpcClient, dpc: FakeDpc) ->
     dpc.add(TOMORROW_URL, body="{}")
     dpc.add(vigilance_geojson_url(VIGI_ID, 0), body="not json")
 
-    assert await client.is_location_covered(LATITUDE, LONGITUDE)
+    assert await client.is_location_covered(ROME)
     assert dpc.requests[-1] == vigilance_geojson_url(VIGI_ID, 1)
 
 
@@ -488,7 +455,7 @@ async def test_is_location_covered_unreachable(client: DpcClient, dpc: FakeDpc) 
     dpc.unresolvable.add("mappe.protezionecivile.gov.it")
 
     with pytest.raises(DpcConnectionError, match="bollettino-di-criticita"):
-        await client.is_location_covered(LATITUDE, LONGITUDE)
+        await client.is_location_covered(ROME)
 
 
 async def test_is_location_covered_cancelled(client: DpcClient, dpc: FakeDpc) -> None:
@@ -502,7 +469,7 @@ async def test_is_location_covered_cancelled(client: DpcClient, dpc: FakeDpc) ->
     serve_criticality(dpc)
     serve_vigilance(dpc)
     dpc.add(CRITICALITY_PAGE_URL, before=hang)
-    task = asyncio.create_task(client.is_location_covered(LATITUDE, LONGITUDE))
+    task = asyncio.create_task(client.is_location_covered(ROME))
     await started.wait()
 
     task.cancel()
@@ -510,12 +477,6 @@ async def test_is_location_covered_cancelled(client: DpcClient, dpc: FakeDpc) ->
     with pytest.raises(asyncio.CancelledError):
         await task
     assert VIGILANCE_PAGE_URL not in dpc.requests
-
-
-async def test_is_location_covered_invalid(client: DpcClient) -> None:
-    """Test that invalid coordinates raise ValueError."""
-    with pytest.raises(ValueError, match="Invalid latitude"):
-        await client.is_location_covered(-91, LONGITUDE)
 
 
 async def test_own_session(dpc: FakeDpc, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -567,7 +528,7 @@ async def test_real_bulletin_served(client: DpcClient, dpc: FakeDpc) -> None:
         body=load_fixture("real/criticality_20261113_1434_today.json"),
     )
 
-    bulletin = await client.get_criticality(41.9, 12.5, now=rome(2026, 11, 13, 18))
+    bulletin = await client.get_criticality(ROME, now=rome(2026, 11, 13, 18))
 
     assert bulletin.id == "20261113_1434"
-    assert [day.zone_name for day in bulletin.days] == ["Bacini di Roma"] * 2
+    assert [day.zone for day in bulletin] == ["Bacini di Roma"] * 2

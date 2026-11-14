@@ -12,18 +12,20 @@ import math
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 from .const import ROME_TZ
 from .exceptions import DpcLocationError, DpcParseError
 from .geo import calculate_initial_compass_bearing, distance_km, point_in_area
 from .models import (
     AlertLevel,
-    Assessment,
     CriticalityDay,
+    Location,
     Phenomenon,
     PhenomenonCategory,
-    Risk,
+    Precipitation,
+    RiskAssessment,
+    RiskType,
     VigilanceDay,
 )
 from .urls import criticality_preview_url, vigilance_preview_url
@@ -31,12 +33,25 @@ from .urls import criticality_preview_url, vigilance_preview_url
 _LOGGER = logging.getLogger(__name__)
 
 ALERT_LEVELS: Final[Mapping[str, AlertLevel]] = {
-    "NESSUNA ALLERTA": AlertLevel.NONE,
+    "NESSUNA ALLERTA": AlertLevel.GREEN,
     "ALLERTA GIALLA": AlertLevel.YELLOW,
     "ALLERTA ARANCIONE": AlertLevel.ORANGE,
     "ALLERTA ROSSA": AlertLevel.RED,
 }
 """Alert texts of the criticality bulletin and their level."""
+
+PRECIPITATION_TEXTS: Final[Mapping[str, Precipitation]] = {
+    "ASSENTI O NON RILEVANTI": Precipitation.NONE,
+    "DEBOLI": Precipitation.LIGHT,
+    "MODERATI": Precipitation.MODERATE,
+    "ELEVATI": Precipitation.HEAVY,
+    "MOLTO ELEVATI": Precipitation.VERY_HEAVY,
+}
+"""Precipitation texts of the vigilance bulletin (``Quantitativi_previsti``)."""
+
+_PRECIPITATION_CLASSES: Final = frozenset(
+    level.value for level in Precipitation if level is not Precipitation.UNKNOWN
+)
 
 PHENOMENON_TYPES: Final[Mapping[int, tuple[PhenomenonCategory, str]]] = {
     1: (PhenomenonCategory.PRECIPITATION, "piogge sparse o intermittenti"),
@@ -73,9 +88,12 @@ PHENOMENON_TYPES: Final[Mapping[int, tuple[PhenomenonCategory, str]]] = {
 """DPC phenomenon codes (``id_fenomeno``): category and Italian legend."""
 
 SUMMARY_PROPERTY: Final = "Rappresentata nella mappa"
-RISK_PROPERTIES: Final[Mapping[Risk, str]] = {
-    risk: f"Per rischio {risk.value}" for risk in Risk
+RISK_PROPERTIES: Final[Mapping[RiskType, str]] = {
+    RiskType.HYDRAULIC: "Per rischio idraulico",
+    RiskType.THUNDERSTORMS: "Per rischio temporali",
+    RiskType.HYDROGEOLOGICAL: "Per rischio idrogeologico",
 }
+"""Properties of the criticality GeoJSON holding the assessment of each risk."""
 # The criticality and vigilance files spell some properties differently.
 _ZONE_NAME_PROPERTIES: Final = ("Nome zona", "Nome_Zona")
 _MUNICIPALITIES_PROPERTIES: Final = ("Comuni", "comuni")
@@ -117,8 +135,8 @@ def parse_vigilance_id(bulletin_id: str) -> dt.date:
         raise ValueError(msg) from err
 
 
-def day_expires(day: dt.date) -> dt.datetime:
-    """Return when the assessment of a day expires.
+def end_of_day(day: dt.date) -> dt.datetime:
+    """Return the end of validity of the assessment of a day.
 
     The criticality bulletin covers "fino alle 24.00 del giorno di emissione
     (oggi) e nelle 24 ore del giorno seguente (domani)", so a day expires at
@@ -127,11 +145,19 @@ def day_expires(day: dt.date) -> dt.datetime:
     return dt.datetime.combine(day + dt.timedelta(days=1), dt.time(), tzinfo=ROME_TZ)
 
 
+class Assessment(NamedTuple):
+    """A DPC criticality value, parsed."""
+
+    level: AlertLevel
+    description: str
+    """The criticality before the alert, e.g. ``"Ordinaria"``."""
+
+
 def parse_assessment(value: object) -> Assessment:
     """Parse a criticality value such as ``"Ordinaria / ALLERTA GIALLA"``.
 
-    The part before the first ``/`` is the criticality (``info``), the rest the
-    alert. An unrecognised alert has level :attr:`AlertLevel.UNKNOWN`.
+    The part before the first ``/`` is the description, the rest the alert. An
+    unrecognised alert has level :attr:`AlertLevel.UNKNOWN`.
     """
     if value is None:
         text = ""
@@ -139,10 +165,40 @@ def parse_assessment(value: object) -> Assessment:
         text = value
     else:
         text = str(value)
-    info, _, alert = text.partition("/")
-    alert = alert.strip()
-    level = ALERT_LEVELS.get(" ".join(alert.upper().split()), AlertLevel.UNKNOWN)
-    return Assessment(info=info.strip(), alert=alert, level=level)
+    description, _, alert = text.partition("/")
+    level = ALERT_LEVELS.get(_upper_words(alert), AlertLevel.UNKNOWN)
+    return Assessment(level, description.strip())
+
+
+def parse_precipitation(class_value: object, text: object = None) -> Precipitation:
+    """Parse the precipitation of a vigilance zone.
+
+    ``class_value`` is the DPC class (``id_classificazione``); when it is not a
+    known class, ``text`` (``Quantitativi_previsti``, e.g. ``"Deboli"``) is
+    used. Unrecognised values give :attr:`Precipitation.UNKNOWN`.
+    """
+    number = _integer(class_value)
+    if number in _PRECIPITATION_CLASSES:
+        return Precipitation(number)
+    if isinstance(text, str):
+        return PRECIPITATION_TEXTS.get(_upper_words(text), Precipitation.UNKNOWN)
+    return Precipitation.UNKNOWN
+
+
+def _upper_words(text: str) -> str:
+    return " ".join(text.upper().split())
+
+
+def _integer(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.strip().isdecimal():
+        return int(value)
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,11 +238,11 @@ def _features(geojson: object) -> list[_Feature]:
     return result
 
 
-def _contains(feature: _Feature, latitude: float, longitude: float) -> bool:
+def _contains(feature: _Feature, location: Location) -> bool:
     if feature.geometry is None:
         return False
     try:
-        return point_in_area(latitude, longitude, feature.geometry)
+        return point_in_area(location.latitude, location.longitude, feature.geometry)
     except (KeyError, IndexError, TypeError, ValueError) as err:
         msg = "DPC GeoJSON has an invalid zone geometry"
         raise DpcParseError(msg) from err
@@ -217,9 +273,7 @@ def _normalize(name: str) -> str:
 
 def _select_zone(
     features: list[_Feature],
-    latitude: float,
-    longitude: float,
-    municipality: str | None,
+    location: Location,
     level: Callable[[Mapping[str, Any]], int],
 ) -> _Zone:
     """Return the zone of a location.
@@ -230,6 +284,7 @@ def _select_zone(
     municipality, or when no zone lists it, the zone containing the
     coordinates is used.
     """
+    municipality = location.municipality
     if municipality and municipality.strip():
         wanted = _normalize(municipality)
         best: _Feature | None = None
@@ -239,7 +294,7 @@ def _select_zone(
             names = _municipalities(feature.properties)
             if not any(_normalize(name) == wanted for name in names):
                 continue
-            if not point_zone_name and _contains(feature, latitude, longitude):
+            if not point_zone_name and _contains(feature, location):
                 point_zone_name = _zone_name(feature.properties)
             feature_level = level(feature.properties)
             if best is None or feature_level > best_level:
@@ -251,7 +306,7 @@ def _select_zone(
             "Municipality %r is in no DPC zone, using the coordinates", municipality
         )
     for feature in features:
-        if _contains(feature, latitude, longitude):
+        if _contains(feature, location):
             return _Zone(feature.properties, _zone_name(feature.properties))
     msg = "The location is not inside any DPC alert zone"
     raise DpcLocationError(msg)
@@ -261,32 +316,24 @@ def _criticality_level(properties: Mapping[str, Any]) -> int:
     return parse_assessment(properties.get(SUMMARY_PROPERTY)).level
 
 
-def _vigilance_level(properties: Mapping[str, Any]) -> int:
-    value = properties.get("id_classificazione")
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    if isinstance(value, str) and value.strip().isdecimal():
-        return int(value)
-    return 0
+def _precipitation(properties: Mapping[str, Any]) -> Precipitation:
+    return parse_precipitation(
+        properties.get("id_classificazione"), properties.get("Quantitativi_previsti")
+    )
 
 
-def location_in_zones(geojson: object, latitude: float, longitude: float) -> bool:
+def location_in_zones(geojson: object, location: Location) -> bool:
     """Return whether a location is inside any zone of a bulletin GeoJSON."""
-    return any(_contains(item, latitude, longitude) for item in _features(geojson))
+    return any(_contains(item, location) for item in _features(geojson))
+
+
+def _risk_assessment(risk_type: RiskType, value: object) -> RiskAssessment:
+    assessment = parse_assessment(value)
+    return RiskAssessment(risk_type, assessment.level, assessment.description)
 
 
 def parse_criticality_day(
-    geojson: object,
-    *,
-    bulletin_id: str,
-    offset: int,
-    latitude: float,
-    longitude: float,
-    municipality: str | None = None,
+    geojson: object, *, bulletin_id: str, offset: int, location: Location
 ) -> CriticalityDay:
     """Parse the criticality GeoJSON of a bulletin day for a location.
 
@@ -295,19 +342,22 @@ def parse_criticality_day(
     """
     day = parse_criticality_id(bulletin_id).date() + dt.timedelta(days=offset)
     image_url = criticality_preview_url(bulletin_id, offset)
-    zone = _select_zone(
-        _features(geojson), latitude, longitude, municipality, _criticality_level
-    )
+    zone = _select_zone(_features(geojson), location, _criticality_level)
+    summary = parse_assessment(zone.properties.get(SUMMARY_PROPERTY))
+    risks = {
+        risk_type: _risk_assessment(risk_type, zone.properties.get(key))
+        for risk_type, key in RISK_PROPERTIES.items()
+    }
     return CriticalityDay(
         date=day,
         offset=offset,
-        expires=day_expires(day),
-        zone_name=zone.name,
-        summary=parse_assessment(zone.properties.get(SUMMARY_PROPERTY)),
-        risks={
-            risk: parse_assessment(zone.properties.get(key))
-            for risk, key in RISK_PROPERTIES.items()
-        },
+        valid_until=end_of_day(day),
+        zone=zone.name,
+        level=max(summary.level, *(item.level for item in risks.values())),
+        description=summary.description,
+        hydraulic=risks[RiskType.HYDRAULIC],
+        thunderstorms=risks[RiskType.THUNDERSTORMS],
+        hydrogeological=risks[RiskType.HYDROGEOLOGICAL],
         image_url=image_url,
     )
 
@@ -317,9 +367,7 @@ def parse_vigilance_day(
     *,
     bulletin_id: str,
     offset: int,
-    latitude: float,
-    longitude: float,
-    municipality: str | None = None,
+    location: Location,
     phenomena: Iterable[Phenomenon] = (),
 ) -> VigilanceDay:
     """Parse the vigilance GeoJSON of a bulletin day for a location.
@@ -332,17 +380,13 @@ def parse_vigilance_day(
     """
     day = parse_vigilance_id(bulletin_id) + dt.timedelta(days=offset)
     image_url = vigilance_preview_url(bulletin_id, offset)
-    zone = _select_zone(
-        _features(geojson), latitude, longitude, municipality, _vigilance_level
-    )
-    precipitation = zone.properties.get("Quantitativi_previsti")
+    zone = _select_zone(_features(geojson), location, _precipitation)
     return VigilanceDay(
         date=day,
         offset=offset,
-        expires=day_expires(day),
-        zone_name=zone.name,
-        level=_vigilance_level(zone.properties),
-        precipitation=precipitation if isinstance(precipitation, str) else None,
+        valid_until=end_of_day(day),
+        zone=zone.name,
+        precipitation=_precipitation(zone.properties),
         image_url=image_url,
         phenomena=tuple(phenomena),
     )
@@ -373,14 +417,14 @@ def _position(feature: _Feature) -> tuple[float, float] | None:
 
 
 def parse_phenomena(
-    geojson: object, *, latitude: float, longitude: float, radius_km: float
+    geojson: object, *, location: Location, within_km: float
 ) -> tuple[Phenomenon, ...]:
-    """Parse the phenomena GeoJSON, keeping those within ``radius_km``.
+    """Parse the phenomena GeoJSON, keeping those within ``within_km``.
 
     Phenomena keep the order of the file. Codes unknown to aiodpc are kept,
     with ``category`` and ``description`` set to ``None``.
     """
-    origin = (latitude, longitude)
+    origin = location.coordinates
     phenomena = []
     for feature in _features(geojson):
         code = feature.properties.get("id_fenomeno")
@@ -389,7 +433,7 @@ def parse_phenomena(
             _LOGGER.debug("Skipping invalid DPC phenomenon %s", feature.properties)
             continue
         distance = distance_km(origin, position)
-        if distance > radius_km:
+        if distance > within_km:
             continue
         category, description = PHENOMENON_TYPES.get(code, (None, None))
         direction, degrees = calculate_initial_compass_bearing(origin, position)

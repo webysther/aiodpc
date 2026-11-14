@@ -15,22 +15,33 @@ from .const import (
     VIGILANCE_PAGE_URL,
 )
 from .discovery import BulletinIdSource, MapPageIdSource, TextFetcher
-from .exceptions import DpcConnectionError, DpcError, DpcLocationError, DpcParseError
+from .exceptions import (
+    DpcConnectionError,
+    DpcError,
+    DpcLocationError,
+    DpcNoDataError,
+    DpcParseError,
+)
 from .models import (
     AlertLevel,
-    Assessment,
     BulletinKind,
     CriticalityBulletin,
     CriticalityDay,
+    Day,
+    Location,
     Phenomenon,
     PhenomenonCategory,
+    Precipitation,
     Risk,
+    RiskAssessment,
+    RiskType,
     VigilanceBulletin,
     VigilanceDay,
     rome_date,
 )
+from .monitor import MonitoredLocation
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "ATTRIBUTION",
@@ -40,20 +51,26 @@ __all__ = [
     "ROME_TZ",
     "VIGILANCE_PAGE_URL",
     "AlertLevel",
-    "Assessment",
     "BulletinIdSource",
     "BulletinKind",
     "CriticalityBulletin",
     "CriticalityDay",
+    "Day",
     "DpcClient",
     "DpcConnectionError",
     "DpcError",
     "DpcLocationError",
+    "DpcNoDataError",
     "DpcParseError",
+    "Location",
     "MapPageIdSource",
+    "MonitoredLocation",
     "Phenomenon",
     "PhenomenonCategory",
+    "Precipitation",
     "Risk",
+    "RiskAssessment",
+    "RiskType",
     "TextFetcher",
     "VigilanceBulletin",
     "VigilanceDay",

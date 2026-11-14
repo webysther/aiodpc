@@ -23,7 +23,7 @@
       },
       "properties": {
         "comuni": ["Como", "Lecco"],
-        "id_classificazione": 5,
+        "id_classificazione": 4,
         "Nome_Zona": "Lombardia centrale settore occidentale",
         "Quantitativi_previsti": "Elevati"
       }

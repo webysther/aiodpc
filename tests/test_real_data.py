@@ -10,25 +10,37 @@ the complete files.
 from __future__ import annotations
 
 import datetime as dt
+from typing import TYPE_CHECKING
 
 import pytest
 
-from aiodpc import AlertLevel, Assessment, PhenomenonCategory, Risk
-from aiodpc.parsers import parse_criticality_day, parse_phenomena, parse_vigilance_day
+from aiodpc import AlertLevel, Location, PhenomenonCategory, Precipitation, RiskType
+from aiodpc.parsers import (
+    Assessment,
+    parse_criticality_day,
+    parse_phenomena,
+    parse_vigilance_day,
+)
 
-from . import load_json, rome
+from . import ROME, load_json, rome
+
+if TYPE_CHECKING:
+    from aiodpc import CriticalityDay
 
 CRIT_ID = "20261113_1434"
 VIGI_ID = "20261113"
-ROME = (41.9, 12.5)
 # In the "Chiani - Paglia" zone, near Città della Pieve, which is also listed by
 # the "Trasimeno - Nestore" zone
 CHIANI = (42.91, 11.98)
 
-NONE = "Assenza di fenomeni significativi prevedibili"
-GREEN = Assessment(NONE, "NESSUNA ALLERTA", AlertLevel.NONE)
-YELLOW = Assessment("Ordinaria", "ALLERTA GIALLA", AlertLevel.YELLOW)
-ORANGE = Assessment("Moderata", "ALLERTA ARANCIONE", AlertLevel.ORANGE)
+GREEN = Assessment(AlertLevel.GREEN, "Assenza di fenomeni significativi prevedibili")
+YELLOW = Assessment(AlertLevel.YELLOW, "Ordinaria")
+ORANGE = Assessment(AlertLevel.ORANGE, "Moderata")
+
+
+def assessments(day: CriticalityDay) -> dict[RiskType, Assessment]:
+    """Return the level and description of each risk type of a day."""
+    return {item.type: Assessment(item.level, item.description) for item in day.risks}
 
 
 def criticality_today() -> object:
@@ -39,23 +51,18 @@ def criticality_today() -> object:
 def test_criticality_by_coordinates() -> None:
     """Test the criticality at Rome."""
     day = parse_criticality_day(
-        criticality_today(),
-        bulletin_id=CRIT_ID,
-        offset=0,
-        latitude=ROME[0],
-        longitude=ROME[1],
+        criticality_today(), bulletin_id=CRIT_ID, offset=0, location=ROME
     )
 
     assert day.date == dt.date(2026, 11, 13)
-    assert day.expires == rome(2026, 11, 14)
-    assert day.zone_name == "Bacini di Roma"
-    assert day.summary == Assessment(
-        "Ordinaria per rischio idrogeologico", "ALLERTA GIALLA", AlertLevel.YELLOW
-    )
-    assert day.risks == {
-        Risk.HYDRAULIC: GREEN,
-        Risk.THUNDERSTORMS: GREEN,
-        Risk.HYDROGEOLOGICAL: YELLOW,
+    assert day.valid_until == rome(2026, 11, 14)
+    assert day.zone == "Bacini di Roma"
+    assert day.level is AlertLevel.YELLOW
+    assert day.description == "Ordinaria per rischio idrogeologico"
+    assert assessments(day) == {
+        RiskType.HYDRAULIC: GREEN,
+        RiskType.THUNDERSTORMS: GREEN,
+        RiskType.HYDROGEOLOGICAL: YELLOW,
     }
 
 
@@ -64,72 +71,58 @@ def test_criticality_by_coordinates() -> None:
     [
         (
             None,
-            Assessment(
-                "Ordinaria per rischio idraulico", "ALLERTA GIALLA", AlertLevel.YELLOW
-            ),
-            dict.fromkeys(Risk, YELLOW),
+            Assessment(AlertLevel.YELLOW, "Ordinaria per rischio idraulico"),
+            dict.fromkeys(RiskType, YELLOW),
         ),
         # The municipality is also in an orange zone, which wins
         (
             "Città della Pieve",
-            Assessment(
-                "Moderata per rischio idrogeologico",
-                "ALLERTA ARANCIONE",
-                AlertLevel.ORANGE,
-            ),
+            Assessment(AlertLevel.ORANGE, "Moderata per rischio idrogeologico"),
             {
-                Risk.HYDRAULIC: YELLOW,
-                Risk.THUNDERSTORMS: YELLOW,
-                Risk.HYDROGEOLOGICAL: ORANGE,
+                RiskType.HYDRAULIC: YELLOW,
+                RiskType.THUNDERSTORMS: YELLOW,
+                RiskType.HYDROGEOLOGICAL: ORANGE,
             },
         ),
     ],
 )
 def test_criticality_by_municipality(
-    municipality: str | None, summary: Assessment, risks: dict[Risk, Assessment]
+    municipality: str | None, summary: Assessment, risks: dict[RiskType, Assessment]
 ) -> None:
     """Test a municipality spanning two zones with different levels."""
     day = parse_criticality_day(
         criticality_today(),
         bulletin_id=CRIT_ID,
         offset=0,
-        latitude=CHIANI[0],
-        longitude=CHIANI[1],
-        municipality=municipality,
+        location=Location(*CHIANI, municipality=municipality),
     )
 
-    assert day.zone_name == "Chiani - Paglia"
-    assert day.summary == summary
-    assert day.risks == risks
+    assert day.zone == "Chiani - Paglia"
+    assert (day.level, day.description) == summary
+    assert assessments(day) == risks
 
 
 @pytest.mark.parametrize(
-    ("municipality", "level", "precipitation"),
-    [(None, 2, "Deboli"), ("Roma", 3, "Moderati")],
+    ("municipality", "precipitation"),
+    [(None, Precipitation.LIGHT), ("Roma", Precipitation.MODERATE)],
 )
-def test_vigilance(municipality: str | None, level: int, precipitation: str) -> None:
+def test_vigilance(municipality: str | None, precipitation: Precipitation) -> None:
     """Test the vigilance at Rome; Roma also lies in a zone with more rain."""
     day = parse_vigilance_day(
         load_json("real/vigilance_20261113_oggi.json"),
         bulletin_id=VIGI_ID,
         offset=0,
-        latitude=ROME[0],
-        longitude=ROME[1],
-        municipality=municipality,
+        location=Location(*ROME.coordinates, municipality=municipality),
     )
 
-    assert day.zone_name == "Comune di Roma"
-    assert day.level == level
-    assert day.precipitation == precipitation
+    assert day.zone == "Comune di Roma"
+    assert day.precipitation is precipitation
 
 
 def test_phenomena() -> None:
     """Test the phenomena within 50 km of Rome."""
     phenomena = parse_phenomena(
-        load_json("real/phenomena_20261113_oggi.json"),
-        latitude=ROME[0],
-        longitude=ROME[1],
-        radius_km=50,
+        load_json("real/phenomena_20261113_oggi.json"), location=ROME, within_km=50
     )
 
     assert [
@@ -186,10 +179,7 @@ def test_phenomena() -> None:
 def test_all_phenomena_codes_are_known() -> None:
     """Test that every phenomenon of the real file has a known code."""
     phenomena = parse_phenomena(
-        load_json("real/phenomena_20261113_oggi.json"),
-        latitude=ROME[0],
-        longitude=ROME[1],
-        radius_km=2000,
+        load_json("real/phenomena_20261113_oggi.json"), location=ROME, within_km=2000
     )
 
     assert len(phenomena) == 70

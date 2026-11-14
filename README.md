@@ -11,9 +11,10 @@ bulletins.
   vigilance zone for today, tomorrow and the day after, and the significant
   weather phenomena (heavy rain, wind, sea storms, frost, fog, temperatures).
 
-Given a location (coordinates, optionally a municipality), aiodpc finds its
-zone and returns typed results. It is built on `asyncio` and `aiohttp`, has no
-Home Assistant dependency and is fully typed.
+Given a location (coordinates, optionally a municipality), aiodpc tells
+whether it has a risk and which one, or returns the bulletins of its zone, day
+by day. It is built on `asyncio` and `aiohttp`, has no Home Assistant
+dependency and is fully typed.
 
 ## Installation
 
@@ -25,85 +26,143 @@ Python 3.13 or later is required.
 
 ## Usage
 
+aiodpc has three levels, from the simplest to the rawest: ask whether a place
+has a risk, read the bulletins day by day, or get the DPC files as they are.
+
+### Is there a risk here?
+
 ```python
 import asyncio
 
-from aiodpc import AlertLevel, DpcClient, DpcError, Risk
+from aiodpc import Day, DpcClient
 
 
 async def main() -> None:
-    async with DpcClient() as client:
-        try:
-            criticality = await client.get_criticality(41.9, 12.5)
-            vigilance = await client.get_vigilance(
-                41.9, 12.5, phenomena_radius_km=50
-            )
-        except DpcError as err:
-            print(f"DPC data unavailable: {err}")
-            return
+    async with DpcClient() as dpc:
+        home = dpc.location(41.9, 12.5)
 
-    print(f"Criticality bulletin {criticality.id}")
-    for day in criticality.days:
-        print(f"{day.date} {day.zone_name}: {day.summary.alert}")
-        for risk, assessment in day.risks.items():
-            print(f"  {risk.name.lower()}: {assessment.level.name}")
+        if await home.has_risk():
+            risk = await home.risk()
+            print(f"Alert today: {risk}")  # Alert today: orange (hydrogeological)
+            print(risk.description)  # Moderata per rischio idrogeologico
+            print(f"Valid until {risk.valid_until}")
 
-    if (today := criticality.today()) and today.max_level >= AlertLevel.YELLOW:
-        print("Alert today:", today.risks[Risk.HYDROGEOLOGICAL].info)
-
-    for day in vigilance.days:
-        print(f"{day.date} {day.zone_name}: {day.precipitation}")
-        for phenomenon in day.phenomena:
-            print(
-                f"  {phenomenon.category} {phenomenon.description}"
-                f" {phenomenon.distance_km} km {phenomenon.direction}"
-            )
+        if await home.has_risk(Day.TOMORROW):
+            print(f"Alert tomorrow: {await home.risk(Day.TOMORROW)}")
 
 
 asyncio.run(main())
 ```
 
+A risk has:
+
+- `level`: an `AlertLevel`, `green`, `yellow`, `orange` or `red`. Levels are
+  ordered (`risk.level >= AlertLevel.ORANGE`); yellow and higher are alerts.
+- `types`: the `RiskType`s at that level: `HYDRAULIC`, `THUNDERSTORMS`,
+  `HYDROGEOLOGICAL`.
+- `description`: the DPC summary, in Italian; `valid_until`: the midnight
+  (Europe/Rome) that ends the day; `day`: the complete assessment of the day.
+
+The location keeps its bulletin: it checks for a new one at most once a
+minute and downloads it only when DPC publishes one, so `has_risk()` and
+`risk()` can be called as often as needed (for example at every update of a
+Home Assistant coordinator).
+
+### Bulletins, day by day
+
+```python
+from aiodpc import DpcClient, Location
+
+ROME = Location(41.9, 12.5)
+
+async with DpcClient() as dpc:
+    alerts = await dpc.get_criticality(ROME)
+    weather = await dpc.get_vigilance(ROME, phenomena_within_km=50)
+
+for day in alerts:
+    print(f"{day.date} {day.zone}: {day.level}")  # 2026-11-15 Bacini di Roma: orange
+    for risk in day.risks:
+        print(f"  {risk}")  # hydrogeological: orange
+
+for day in weather:
+    print(f"{day.date} {day.zone}: {day.precipitation}")  # ... Comune di Roma: moderate
+    for phenomenon in day.phenomena:
+        print(f"  {phenomenon}")  # wind: forti, 30.4 km WSW
+```
+
+A criticality day has the `level` of its zone and the assessment of each risk
+type: `day.hydraulic`, `day.thunderstorms`, `day.hydrogeological` (all of them
+in `day.risks`). A vigilance day has the expected `precipitation` (a
+`Precipitation`, from `none` to `very_heavy`) and the significant `phenomena`
+near the location.
+
 Pass your own session with `DpcClient(session)`; the client never closes a
 session it did not create.
 
-### Days and expiry
+#### Days and validity
 
-Each day of a bulletin carries its calendar `date` and its `expires` time (the
-midnight, Europe/Rome, that ends the day). Look days up by date instead of by
-position: `bulletin.day_for(date)`, `bulletin.today()` and
-`bulletin.tomorrow()`. After midnight the bulletin published the day before
-still answers `today()` with its second day until DPC publishes a new one.
+Each day carries its calendar `date` and `valid_until`, the midnight
+(Europe/Rome) that ends it. Look days up by date rather than by position:
+`bulletin.today`, `bulletin.tomorrow` or `bulletin.on(date)`. After midnight
+the bulletin published the day before still answers `today` with its second
+day until DPC publishes a new one.
 
 By default, days that are already over are not downloaded
 (`skip_expired=False` to get them all, e.g. for a past `bulletin_id`).
 
-### Polling
+#### Polling
 
-The bulletin files are large (several MB per day). To poll, check the latest
-ID and fetch the bulletin only when it changed:
+The bulletin files are large (several MB per day). `dpc.location()` polls
+efficiently for you; with the bulletins, check the latest ID and fetch the
+bulletin only when it changed:
 
 ```python
 from aiodpc import BulletinKind
 
-latest = await client.latest_bulletin_id(BulletinKind.CRITICALITY)
-if latest != criticality.id:
-    criticality = await client.get_criticality(41.9, 12.5, bulletin_id=latest)
+latest = await dpc.latest_bulletin_id(BulletinKind.CRITICALITY)
+if latest != alerts.id:
+    alerts = await dpc.get_criticality(ROME, bulletin_id=latest)
 ```
 
 The criticality bulletin is published every day by 16:00 (Europe/Rome) and may
 be re-issued later the same day ("Aggiornamento"); the vigilance bulletin by
 15:00.
 
+### Raw DPC files (optional)
+
+```bash
+pip install "aiodpc[schema]"
+```
+
+The DPC files are also available as typed DTOs, with clean names for the
+DPC fields (`zone_name` for `"Nome zona"`):
+
+```python
+file = await dpc.get_criticality_file()  # latest bulletin, publication day
+for zone in file.features:
+    print(zone.properties.zone_name, zone.properties.summary)
+```
+
+The DTOs are strict, which is their purpose: when DPC changes its format they
+raise `DpcParseError` saying where, e.g. ``Object missing required field `Nome
+zona` - at `$.features[1].properties` ``. New fields are ignored. The rest of
+aiodpc does not use them and keeps working when the data is incomplete.
+`get_vigilance_file()` and `get_phenomena_file()` cover the vigilance bulletin;
+`aiodpc.schema` decodes files fetched by other means.
+
 ### Municipality
 
-With `municipality="Roma"`, the zones that list the municipality are
-considered and the one with the highest level is used; `zone_name` is the zone
-containing the coordinates. Large municipalities span several zones.
+With `dpc.location(41.9, 12.5, municipality="Roma")` or
+`Location(41.9, 12.5, municipality="Roma")`, the zones that list the
+municipality are considered and the one with the highest level is used; `zone`
+is the zone containing the coordinates. Large municipalities span several
+zones.
 
 ### Coverage check
 
-`await client.is_location_covered(lat, lon)` returns whether the coordinates
-are inside a DPC alert zone, for example to validate a configuration.
+`await dpc.is_location_covered(Location(lat, lon))` returns whether the
+coordinates are inside a DPC alert zone, for example to validate a
+configuration.
 
 ### Errors
 
@@ -112,17 +171,16 @@ All errors derive from `DpcError`:
 - `DpcConnectionError`: network error, HTTP error status or timeout.
 - `DpcParseError`: invalid JSON or unexpected data format.
 - `DpcLocationError`: the location is not inside any zone of the bulletin.
+- `DpcNoDataError`: no published bulletin covers the requested day.
 
 Invalid arguments (coordinates, bulletin IDs) raise `ValueError`.
 
 ### Translations and codes
 
-The texts written by DPC are kept in Italian (`Assessment.info`,
-`Assessment.alert`, `VigilanceDay.precipitation`,
-`Phenomenon.description`). Codes are exposed for translation and icons:
-`AlertLevel`, `Risk` (value: the DPC code, e.g. `idraulico`),
-`PhenomenonCategory` (e.g. `PRECIPITAZIONI`) and `Phenomenon.code` (the DPC
-`id_fenomeno`).
+`AlertLevel`, `Precipitation`, `RiskType` and `PhenomenonCategory` print as
+English codes (`orange`, `very_heavy`, `hydrogeological`, `wave_motion`),
+ready to be used as translation keys; `Phenomenon.code` is the DPC
+`id_fenomeno`. The texts written by DPC are kept in Italian (`description`).
 
 ### Low-level API
 

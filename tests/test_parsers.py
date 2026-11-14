@@ -9,19 +9,23 @@ import pytest
 
 from aiodpc import (
     AlertLevel,
-    Assessment,
     DpcLocationError,
     DpcParseError,
+    Location,
     PhenomenonCategory,
-    Risk,
+    Precipitation,
+    RiskAssessment,
+    RiskType,
 )
 from aiodpc.parsers import (
-    day_expires,
+    Assessment,
+    end_of_day,
     location_in_zones,
     parse_assessment,
     parse_criticality_day,
     parse_criticality_id,
     parse_phenomena,
+    parse_precipitation,
     parse_vigilance_day,
     parse_vigilance_id,
 )
@@ -35,7 +39,7 @@ from aiodpc.urls import (
     vigilance_preview_url,
 )
 
-from . import CRIT_ID, LATITUDE, LONGITUDE, OUTSIDE, VIGI_ID, load_json, rome
+from . import CRIT_ID, LATITUDE, LONGITUDE, PARIS, ROME, VIGI_ID, load_json, rome
 
 if TYPE_CHECKING:
     from aiodpc.models import CriticalityDay, VigilanceDay
@@ -45,11 +49,14 @@ CRIT_FILES = f"{GITHUB}/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/master/
 VIGI_FILES = f"{GITHUB}/DPC-Bollettini-Vigilanza-Meteorologica/master/files"
 
 # Assessments of the fixtures
-GREEN = Assessment(
-    "Assenza di fenomeni significativi prevedibili", "NESSUNA ALLERTA", AlertLevel.NONE
-)
-YELLOW = Assessment("Ordinaria", "ALLERTA GIALLA", AlertLevel.YELLOW)
-RED = Assessment("Elevata", "ALLERTA ROSSA", AlertLevel.RED)
+GREEN = Assessment(AlertLevel.GREEN, "Assenza di fenomeni significativi prevedibili")
+YELLOW = Assessment(AlertLevel.YELLOW, "Ordinaria")
+RED = Assessment(AlertLevel.RED, "Elevata")
+
+
+def assessments(day: CriticalityDay) -> dict[RiskType, Assessment]:
+    """Return the level and description of each risk type of a day."""
+    return {item.type: Assessment(item.level, item.description) for item in day.risks}
 
 
 def square(south: float, west: float, north: float, east: float) -> dict[str, Any]:
@@ -90,9 +97,7 @@ def criticality(
         geojson,
         bulletin_id=CRIT_ID,
         offset=offset,
-        latitude=LATITUDE,
-        longitude=LONGITUDE,
-        municipality=municipality,
+        location=Location(LATITUDE, LONGITUDE, municipality),
     )
 
 
@@ -104,9 +109,7 @@ def vigilance(
         geojson,
         bulletin_id=VIGI_ID,
         offset=offset,
-        latitude=LATITUDE,
-        longitude=LONGITUDE,
-        municipality=municipality,
+        location=Location(LATITUDE, LONGITUDE, municipality),
     )
 
 
@@ -120,26 +123,16 @@ def vigilance(
         ("Ordinaria / ALLERTA GIALLA", YELLOW),
         (
             "Moderata per rischio idrogeologico / ALLERTA ARANCIONE",
-            Assessment(
-                "Moderata per rischio idrogeologico",
-                "ALLERTA ARANCIONE",
-                AlertLevel.ORANGE,
-            ),
+            Assessment(AlertLevel.ORANGE, "Moderata per rischio idrogeologico"),
         ),
         ("Elevata / ALLERTA ROSSA", RED),
-        # Case and spacing of the alert do not matter; the text is kept as is
-        (
-            "Elevata /  Allerta   Rossa ",
-            Assessment("Elevata", "Allerta   Rossa", AlertLevel.RED),
-        ),
+        # Case and spacing of the alert do not matter
+        ("Elevata /  Allerta   Rossa ", RED),
         # Only the first slash separates the alert
-        (
-            "A/B / ALLERTA GIALLA",
-            Assessment("A", "B / ALLERTA GIALLA", AlertLevel.UNKNOWN),
-        ),
-        ("Senza allerta", Assessment("Senza allerta", "", AlertLevel.UNKNOWN)),
-        (None, Assessment("", "", AlertLevel.UNKNOWN)),
-        (42, Assessment("42", "", AlertLevel.UNKNOWN)),
+        ("A/B / ALLERTA GIALLA", Assessment(AlertLevel.UNKNOWN, "A")),
+        ("Senza allerta", Assessment(AlertLevel.UNKNOWN, "Senza allerta")),
+        (None, Assessment(AlertLevel.UNKNOWN, "")),
+        (42, Assessment(AlertLevel.UNKNOWN, "42")),
     ],
 )
 def test_parse_assessment(value: object, expected: Assessment) -> None:
@@ -178,14 +171,14 @@ def test_invalid_vigilance_id(bulletin_id: str) -> None:
         (dt.date(2026, 10, 25), rome(2026, 10, 26), dt.timedelta(hours=1)),
     ],
 )
-def test_day_expires(
+def test_end_of_day(
     day: dt.date, expected: dt.datetime, utc_offset: dt.timedelta
 ) -> None:
-    """Test that a day expires at the midnight that ends it, in Rome."""
-    expires = day_expires(day)
+    """Test that a day is valid until the midnight that ends it, in Rome."""
+    valid_until = end_of_day(day)
 
-    assert expires == expected
-    assert expires.utcoffset() == utc_offset
+    assert valid_until == expected
+    assert valid_until.utcoffset() == utc_offset
 
 
 def test_urls() -> None:
@@ -223,17 +216,20 @@ def test_criticality_today() -> None:
 
     assert day.date == dt.date(2026, 11, 14)
     assert day.offset == 0
-    assert day.expires == rome(2026, 11, 15)
-    assert day.zone_name == "Bacini di Roma"
-    assert day.summary == Assessment(
-        "Ordinaria per rischio temporali", "ALLERTA GIALLA", AlertLevel.YELLOW
+    assert day.valid_until == rome(2026, 11, 15)
+    assert day.zone == "Bacini di Roma"
+    assert day.level is AlertLevel.YELLOW
+    assert day.description == "Ordinaria per rischio temporali"
+    assert day.hydraulic == RiskAssessment(
+        RiskType.HYDRAULIC,
+        AlertLevel.GREEN,
+        "Assenza di fenomeni significativi prevedibili",
     )
-    assert day.risks == {
-        Risk.HYDRAULIC: GREEN,
-        Risk.THUNDERSTORMS: YELLOW,
-        Risk.HYDROGEOLOGICAL: YELLOW,
+    assert assessments(day) == {
+        RiskType.HYDRAULIC: GREEN,
+        RiskType.THUNDERSTORMS: YELLOW,
+        RiskType.HYDROGEOLOGICAL: YELLOW,
     }
-    assert day.max_level is AlertLevel.YELLOW
     assert day.image_url == f"{CRIT_FILES}/preview/20261114_1430_oggi.png"
 
 
@@ -242,8 +238,9 @@ def test_criticality_tomorrow() -> None:
     day = criticality(load_json("criticality_tomorrow.json"), 1)
 
     assert day.date == dt.date(2026, 11, 15)
-    assert day.expires == rome(2026, 11, 16)
-    assert day.risks[Risk.HYDROGEOLOGICAL].level is AlertLevel.ORANGE
+    assert day.valid_until == rome(2026, 11, 16)
+    assert day.hydrogeological.level is AlertLevel.ORANGE
+    assert day.level is AlertLevel.ORANGE
     assert day.image_url == f"{CRIT_FILES}/preview/20261114_1430_domani.png"
 
 
@@ -254,8 +251,7 @@ def test_location_outside() -> None:
             load_json("criticality_today.json"),
             bulletin_id=CRIT_ID,
             offset=0,
-            latitude=OUTSIDE[0],
-            longitude=OUTSIDE[1],
+            location=PARIS,
         )
 
 
@@ -264,16 +260,16 @@ def test_municipality(municipality: str) -> None:
     """Test the lookup by municipality, ignoring case and spacing."""
     day = criticality(load_json("criticality_today.json"), municipality=municipality)
 
-    assert day.zone_name == "Bacini di Roma"
-    assert day.summary.level is AlertLevel.YELLOW
+    assert day.zone == "Bacini di Roma"
+    assert day.level is AlertLevel.YELLOW
 
 
 def test_municipality_of_another_zone() -> None:
     """Test a municipality whose zones do not contain the coordinates."""
     day = criticality(load_json("criticality_today.json"), municipality="Como")
 
-    assert day.zone_name == "Lario e Prealpi occidentali"
-    assert day.risks == dict.fromkeys(Risk, RED)
+    assert day.zone == "Lario e Prealpi occidentali"
+    assert assessments(day) == dict.fromkeys(RiskType, RED)
 
 
 def test_municipality_in_several_zones() -> None:
@@ -289,19 +285,21 @@ def test_municipality_in_several_zones() -> None:
 
     day = criticality(geojson, municipality="Roma")
 
-    assert day.zone_name == "Centro"
-    assert day.summary == Assessment("Elevata", "ALLERTA ROSSA", AlertLevel.RED)
+    assert day.zone == "Centro"
+    assert (day.level, day.description) == (AlertLevel.RED, "Elevata")
     # The first zone with the highest level wins
-    assert day.risks[Risk.HYDRAULIC].info == "Elevata"
+    assert day.hydraulic.description == "Elevata"
     # Risks missing from the data are unknown
-    assert day.risks[Risk.THUNDERSTORMS] == Assessment("", "", AlertLevel.UNKNOWN)
+    assert day.thunderstorms == RiskAssessment(
+        RiskType.THUNDERSTORMS, AlertLevel.UNKNOWN, ""
+    )
 
 
 def test_municipality_not_found(caplog: pytest.LogCaptureFixture) -> None:
     """Test that an unknown municipality falls back to the coordinates."""
     day = criticality(load_json("criticality_today.json"), municipality="Atlantide")
 
-    assert day.zone_name == "Bacini di Roma"
+    assert day.zone == "Bacini di Roma"
     assert "Atlantide" in caplog.text
 
 
@@ -312,9 +310,7 @@ def test_municipality_not_found_outside() -> None:
             load_json("criticality_today.json"),
             bulletin_id=CRIT_ID,
             offset=0,
-            latitude=OUTSIDE[0],
-            longitude=OUTSIDE[1],
-            municipality="Atlantide",
+            location=Location(*PARIS.coordinates, municipality="Atlantide"),
         )
 
 
@@ -332,8 +328,8 @@ def test_unusual_features_are_skipped() -> None:
 
     day = criticality(geojson, municipality="Roma")
 
-    assert day.zone_name == ""
-    assert day.summary.level is AlertLevel.UNKNOWN
+    assert day.zone == ""
+    assert day.level is AlertLevel.UNKNOWN
 
 
 @pytest.mark.parametrize(
@@ -362,23 +358,22 @@ def test_location_in_zones() -> None:
     """Test whether locations are inside the zones of a bulletin."""
     geojson = load_json("criticality_today.json")
 
-    assert location_in_zones(geojson, LATITUDE, LONGITUDE)
-    assert not location_in_zones(geojson, *OUTSIDE)
+    assert location_in_zones(geojson, ROME)
+    assert not location_in_zones(geojson, PARIS)
 
 
 @pytest.mark.parametrize(
-    ("offset", "date", "level", "precipitation", "image"),
+    ("offset", "date", "precipitation", "image"),
     [
-        (0, dt.date(2026, 11, 14), 2, "Deboli", "oggi"),
-        (1, dt.date(2026, 11, 15), 3, "Moderati", "domani"),
-        (2, dt.date(2026, 11, 16), 1, "Assenti o non rilevanti", None),
+        (0, dt.date(2026, 11, 14), Precipitation.LIGHT, "oggi"),
+        (1, dt.date(2026, 11, 15), Precipitation.MODERATE, "domani"),
+        (2, dt.date(2026, 11, 16), Precipitation.NONE, None),
     ],
 )
 def test_vigilance(
     offset: int,
     date: dt.date,
-    level: int,
-    precipitation: str,
+    precipitation: Precipitation,
     image: str | None,
 ) -> None:
     """Test the vigilance of each day at the location."""
@@ -386,10 +381,9 @@ def test_vigilance(
 
     assert day.date == date
     assert day.offset == offset
-    assert day.expires == day_expires(date)
-    assert day.zone_name == "Lazio centrale"
-    assert day.level == level
-    assert day.precipitation == precipitation
+    assert day.valid_until == end_of_day(date)
+    assert day.zone == "Lazio centrale"
+    assert day.precipitation is precipitation
     assert day.image_url == (
         f"{VIGI_FILES}/preview/20261114_{image}.png" if image else None
     )
@@ -400,34 +394,53 @@ def test_vigilance_municipality() -> None:
     """Test the vigilance looked up by municipality."""
     day = vigilance(load_json("vigilance_oggi.json"), municipality="Como")
 
-    assert day.zone_name == "Lombardia centrale settore occidentale"
-    assert day.level == 5
+    assert day.zone == "Lombardia centrale settore occidentale"
+    assert day.precipitation is Precipitation.HEAVY
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"),
-    [(3, 3), (3.0, 3), ("3", 3), (2.5, 0), ("tre", 0), (True, 0), (None, 0)],
+    ("class_value", "text", "expected"),
+    [
+        (3, None, Precipitation.MODERATE),
+        (3.0, None, Precipitation.MODERATE),
+        (" 5 ", None, Precipitation.VERY_HEAVY),
+        # The class wins over the text
+        (2, "Elevati", Precipitation.LIGHT),
+        # Without a known class, the text is used, ignoring case and spacing
+        (None, "Molto  elevati", Precipitation.VERY_HEAVY),
+        (9, "deboli", Precipitation.LIGHT),
+        (2.5, "Assenti o non rilevanti", Precipitation.NONE),
+        # Unrecognised
+        (0, None, Precipitation.UNKNOWN),
+        (True, None, Precipitation.UNKNOWN),
+        ("tre", "Abbondanti", Precipitation.UNKNOWN),
+        (None, 3, Precipitation.UNKNOWN),
+    ],
 )
-def test_vigilance_level(value: object, expected: int) -> None:
-    """Test the parsing of the precipitation class of a zone."""
+def test_parse_precipitation(
+    class_value: object, text: object, expected: Precipitation
+) -> None:
+    """Test the parsing of the precipitation of a zone."""
+    assert parse_precipitation(class_value, text) is expected
+
+
+def test_vigilance_unrecognised_precipitation() -> None:
+    """Test a zone whose precipitation is not recognised."""
     geojson = collection(
         {
             "geometry": square(41.5, 12.0, 42.3, 13.0),
             "properties": {
                 "Nome_Zona": "Lazio",
-                "id_classificazione": value,
+                "id_classificazione": "tre",
                 "Quantitativi_previsti": 3,
             },
         }
     )
 
-    day = vigilance(geojson)
-
-    assert day.level == expected
-    assert day.precipitation is None
+    assert vigilance(geojson).precipitation is Precipitation.UNKNOWN
 
 
-def phenomena(geojson: object, radius_km: float = 50) -> list[tuple[object, ...]]:
+def phenomena(geojson: object, within_km: float = 50) -> list[tuple[object, ...]]:
     """Parse phenomena at the default location, as comparable tuples."""
     return [
         (
@@ -442,9 +455,7 @@ def phenomena(geojson: object, radius_km: float = 50) -> list[tuple[object, ...]
             item.bulletin_id,
             item.bulletin_date,
         )
-        for item in parse_phenomena(
-            geojson, latitude=LATITUDE, longitude=LONGITUDE, radius_km=radius_km
-        )
+        for item in parse_phenomena(geojson, location=ROME, within_km=within_km)
     ]
 
 
@@ -517,4 +528,4 @@ def test_phenomena_unusual_data() -> None:
 def test_phenomena_unexpected_format() -> None:
     """Test that unexpected phenomena data raises a parse error."""
     with pytest.raises(DpcParseError):
-        parse_phenomena({}, latitude=LATITUDE, longitude=LONGITUDE, radius_km=50)
+        parse_phenomena({}, location=ROME, within_km=50)

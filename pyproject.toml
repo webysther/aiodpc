@@ -42,8 +42,13 @@ dependencies = [
   "tzdata; sys_platform == 'win32'",
 ]
 
+[project.optional-dependencies]
+# Strict DTOs of the raw DPC files (aiodpc.schema)
+schema = ["msgspec>=0.19"]
+
 [dependency-groups]
 dev = [
+  "msgspec>=0.19",
   "mypy>=1.15",
   "pytest>=8.3",
   "pytest-asyncio>=1.0",

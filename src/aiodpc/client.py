@@ -7,7 +7,7 @@ import datetime as dt
 import json
 import logging
 import math
-from typing import TYPE_CHECKING, Any, Final, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import aiohttp
 
@@ -18,11 +18,13 @@ from .models import (
     BulletinKind,
     CriticalityBulletin,
     CriticalityDay,
+    Location,
     VigilanceBulletin,
     VigilanceDay,
 )
+from .monitor import MonitoredLocation
 from .parsers import (
-    day_expires,
+    end_of_day,
     location_in_zones,
     parse_criticality_day,
     parse_criticality_id,
@@ -39,12 +41,11 @@ from .urls import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine, Iterable
+    from collections.abc import Callable, Coroutine, Iterable
+
+    from .schema import CriticalityFile, PhenomenaFile, VigilanceFile
 
 _LOGGER = logging.getLogger(__name__)
-
-_MAX_LATITUDE: Final = 90.0
-_MAX_LONGITUDE: Final = 180.0
 
 
 class DpcClient:
@@ -52,14 +53,20 @@ class DpcClient:
 
     Pass the ``aiohttp.ClientSession`` of the application (it is never closed
     by the client), or use the client as an async context manager to let it
-    manage its own session::
+    manage its own session.
 
-        async with DpcClient() as client:
-            bulletin = await client.get_criticality(41.9, 12.5)
+    The API has three levels, from the simplest:
 
-    The bulletin files are large (a few MB per day): to poll, compare
-    :meth:`latest_bulletin_id` with the ID of the bulletin already fetched and
-    fetch the bulletin again only when it changed.
+    - :meth:`location`: answers "is there a risk here?" and "which one?".
+    - :meth:`get_criticality` and :meth:`get_vigilance`: the bulletins for a
+      location, day by day, parsed leniently.
+    - :meth:`get_criticality_file` and the other ``*_file`` methods: the raw
+      DPC files as strict DTOs (optional, ``aiodpc[schema]``).
+
+    The bulletin files are large (a few MB per day): to poll the bulletins,
+    compare :meth:`latest_bulletin_id` with the ID of the bulletin already
+    fetched and fetch it again only when it changed. :meth:`location` does it
+    for you.
     """
 
     def __init__(
@@ -86,6 +93,18 @@ class DpcClient:
     async def __aexit__(self, *_exc_info: object) -> None:
         """Exit the async context, closing the session owned by the client."""
         await self.close()
+
+    def location(
+        self, latitude: float, longitude: float, *, municipality: str | None = None
+    ) -> MonitoredLocation:
+        """Return a location answering whether it has a risk, and which one.
+
+        See :class:`aiodpc.Location` for ``municipality``. Raises
+        ``ValueError`` for invalid coordinates.
+        """
+        return MonitoredLocation(
+            self, Location(latitude, longitude, municipality=municipality)
+        )
 
     async def close(self) -> None:
         """Close the session if the client created it."""
@@ -114,25 +133,21 @@ class DpcClient:
 
     async def get_criticality(
         self,
-        latitude: float,
-        longitude: float,
+        location: Location,
         *,
-        municipality: str | None = None,
         bulletin_id: str | None = None,
         skip_expired: bool = True,
         now: dt.datetime | None = None,
     ) -> CriticalityBulletin:
-        """Return the criticality bulletin for a location.
+        """Return the criticality bulletin for a location: its alert levels.
 
-        ``municipality`` (optional) selects, among the zones listing it, the one
-        with the highest alert. ``bulletin_id`` defaults to the latest bulletin.
-        With ``skip_expired``, days already over at ``now`` (default: the
-        current time) are not downloaded and are missing from ``days``.
+        ``bulletin_id`` defaults to the latest bulletin. With ``skip_expired``,
+        days already over at ``now`` (default: the current time) are not
+        downloaded and are missing from the bulletin.
 
         Raises :class:`DpcConnectionError`, :class:`DpcParseError` or
-        :class:`DpcLocationError`; ``ValueError`` for invalid arguments.
+        :class:`DpcLocationError`; ``ValueError`` for an invalid bulletin ID.
         """
-        _check_location(latitude, longitude)
         if bulletin_id is None:
             bulletin_id = await self.latest_bulletin_id(BulletinKind.CRITICALITY)
         published = parse_criticality_id(bulletin_id)
@@ -143,10 +158,7 @@ class DpcClient:
             now=now,
         )
         days = await _gather(
-            self._criticality_day(
-                bulletin_id, offset, latitude, longitude, municipality
-            )
-            for offset in offsets
+            self._criticality_day(bulletin_id, offset, location) for offset in offsets
         )
         return CriticalityBulletin(
             id=bulletin_id, published=published, days=tuple(days)
@@ -154,26 +166,23 @@ class DpcClient:
 
     async def get_vigilance(
         self,
-        latitude: float,
-        longitude: float,
+        location: Location,
         *,
-        municipality: str | None = None,
-        phenomena_radius_km: float = DEFAULT_PHENOMENA_RADIUS_KM,
+        phenomena_within_km: float = DEFAULT_PHENOMENA_RADIUS_KM,
         bulletin_id: str | None = None,
         skip_expired: bool = True,
         now: dt.datetime | None = None,
     ) -> VigilanceBulletin:
         """Return the weather vigilance bulletin for a location.
 
-        Each day includes the phenomena within ``phenomena_radius_km`` of the
+        Each day includes the phenomena within ``phenomena_within_km`` of the
         coordinates. The other arguments are as in :meth:`get_criticality`.
 
         Raises :class:`DpcConnectionError`, :class:`DpcParseError` or
         :class:`DpcLocationError`; ``ValueError`` for invalid arguments.
         """
-        _check_location(latitude, longitude)
-        if not (math.isfinite(phenomena_radius_km) and phenomena_radius_km >= 0):
-            msg = f"Invalid phenomena radius: {phenomena_radius_km}"
+        if not (math.isfinite(phenomena_within_km) and phenomena_within_km >= 0):
+            msg = f"Invalid phenomena distance: {phenomena_within_km}"
             raise ValueError(msg)
         if bulletin_id is None:
             bulletin_id = await self.latest_bulletin_id(BulletinKind.VIGILANCE)
@@ -182,19 +191,12 @@ class DpcClient:
             published, len(VIGILANCE_DAYS), skip_expired=skip_expired, now=now
         )
         days = await _gather(
-            self._vigilance_day(
-                bulletin_id,
-                offset,
-                latitude,
-                longitude,
-                municipality,
-                phenomena_radius_km,
-            )
+            self._vigilance_day(bulletin_id, offset, location, phenomena_within_km)
             for offset in offsets
         )
         return VigilanceBulletin(id=bulletin_id, date=published, days=tuple(days))
 
-    async def is_location_covered(self, latitude: float, longitude: float) -> bool:
+    async def is_location_covered(self, location: Location) -> bool:
         """Return whether a location is inside a DPC alert zone.
 
         The zones of the latest criticality bulletin are used, or those of the
@@ -202,7 +204,6 @@ class DpcClient:
 
         Raises the first :class:`DpcError` when no bulletin could be used.
         """
-        _check_location(latitude, longitude)
         sources = (
             (BulletinKind.CRITICALITY, criticality_geojson_url),
             (BulletinKind.VIGILANCE, vigilance_geojson_url),
@@ -217,37 +218,97 @@ class DpcClient:
             for offset in (0, 1):
                 try:
                     geojson = await self._fetch_json(geojson_url(bulletin_id, offset))
-                    return location_in_zones(geojson, latitude, longitude)
+                    return location_in_zones(geojson, location)
                 except DpcError as err:
                     errors.append(err)
         raise errors[0]
 
-    async def _criticality_day(
+    async def get_criticality_file(
+        self, bulletin_id: str | None = None, offset: int = 0
+    ) -> CriticalityFile:
+        """Return a day of the criticality bulletin as a strict DTO.
+
+        Requires ``aiodpc[schema]``. ``bulletin_id`` defaults to the latest
+        bulletin and ``offset`` is the day: 0 (publication day) or 1.
+
+        Raises :class:`DpcParseError` when the file does not match the DTO,
+        :class:`DpcConnectionError`, or ``ValueError`` for invalid arguments.
+        """
+        from .schema import decode_criticality_file  # noqa: PLC0415 - optional
+
+        return await self._get_file(
+            BulletinKind.CRITICALITY,
+            criticality_geojson_url,
+            decode_criticality_file,
+            bulletin_id,
+            offset,
+        )
+
+    async def get_vigilance_file(
+        self, bulletin_id: str | None = None, offset: int = 0
+    ) -> VigilanceFile:
+        """Return the zones of a day of the vigilance bulletin as a strict DTO.
+
+        Requires ``aiodpc[schema]``. ``offset`` is the day: 0 (publication
+        day), 1 or 2. See :meth:`get_criticality_file`.
+        """
+        from .schema import decode_vigilance_file  # noqa: PLC0415 - optional
+
+        return await self._get_file(
+            BulletinKind.VIGILANCE,
+            vigilance_geojson_url,
+            decode_vigilance_file,
+            bulletin_id,
+            offset,
+        )
+
+    async def get_phenomena_file(
+        self, bulletin_id: str | None = None, offset: int = 0
+    ) -> PhenomenaFile:
+        """Return the phenomena of a day of the vigilance bulletin as a DTO.
+
+        Requires ``aiodpc[schema]``. See :meth:`get_vigilance_file`.
+        """
+        from .schema import decode_phenomena_file  # noqa: PLC0415 - optional
+
+        return await self._get_file(
+            BulletinKind.VIGILANCE,
+            phenomena_geojson_url,
+            decode_phenomena_file,
+            bulletin_id,
+            offset,
+        )
+
+    async def _get_file[FileT](
         self,
-        bulletin_id: str,
+        kind: BulletinKind,
+        url: Callable[[str, int], str],
+        decode: Callable[[bytes], FileT],
+        bulletin_id: str | None,
         offset: int,
-        latitude: float,
-        longitude: float,
-        municipality: str | None,
+    ) -> FileT:
+        if bulletin_id is None:
+            bulletin_id = await self.latest_bulletin_id(kind)
+        elif kind is BulletinKind.CRITICALITY:
+            parse_criticality_id(bulletin_id)
+        else:
+            parse_vigilance_id(bulletin_id)
+        return decode(await self._request(url(bulletin_id, offset)))
+
+    async def _criticality_day(
+        self, bulletin_id: str, offset: int, location: Location
     ) -> CriticalityDay:
         geojson = await self._fetch_json(criticality_geojson_url(bulletin_id, offset))
         return parse_criticality_day(
-            geojson,
-            bulletin_id=bulletin_id,
-            offset=offset,
-            latitude=latitude,
-            longitude=longitude,
-            municipality=municipality,
+            geojson, bulletin_id=bulletin_id, offset=offset, location=location
         )
 
     async def _vigilance_day(
         self,
         bulletin_id: str,
         offset: int,
-        latitude: float,
-        longitude: float,
-        municipality: str | None,
-        phenomena_radius_km: float,
+        location: Location,
+        phenomena_within_km: float,
     ) -> VigilanceDay:
         zones, phenomena = await _gather(
             self._fetch_json(url(bulletin_id, offset))
@@ -257,14 +318,9 @@ class DpcClient:
             zones,
             bulletin_id=bulletin_id,
             offset=offset,
-            latitude=latitude,
-            longitude=longitude,
-            municipality=municipality,
+            location=location,
             phenomena=parse_phenomena(
-                phenomena,
-                latitude=latitude,
-                longitude=longitude,
-                radius_km=phenomena_radius_km,
+                phenomena, location=location, within_km=phenomena_within_km
             ),
         )
 
@@ -308,17 +364,6 @@ class DpcClient:
         return data
 
 
-def _check_location(latitude: float, longitude: float) -> None:
-    if not (math.isfinite(latitude) and -_MAX_LATITUDE <= latitude <= _MAX_LATITUDE):
-        msg = f"Invalid latitude: {latitude}"
-        raise ValueError(msg)
-    if not (
-        math.isfinite(longitude) and -_MAX_LONGITUDE <= longitude <= _MAX_LONGITUDE
-    ):
-        msg = f"Invalid longitude: {longitude}"
-        raise ValueError(msg)
-
-
 def _offsets(
     first_day: dt.date, count: int, *, skip_expired: bool, now: dt.datetime | None
 ) -> list[int]:
@@ -332,7 +377,7 @@ def _offsets(
     return [
         offset
         for offset in range(count)
-        if day_expires(first_day + dt.timedelta(days=offset)) > now
+        if end_of_day(first_day + dt.timedelta(days=offset)) > now
     ]
 
 

@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from aiodpc import CRITICALITY_PAGE_URL, ROME_TZ, VIGILANCE_PAGE_URL
+from aiodpc import CRITICALITY_PAGE_URL, ROME_TZ, VIGILANCE_PAGE_URL, Location
 from aiodpc.urls import (
     criticality_geojson_url,
     phenomena_geojson_url,
@@ -22,8 +22,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # A location in Rome, inside the zones of the fixtures
 LATITUDE = 41.9
 LONGITUDE = 12.5
+ROME = Location(LATITUDE, LONGITUDE)
 # A location in Paris, outside every DPC zone
-OUTSIDE = (48.8566, 2.3522)
+PARIS = Location(48.8566, 2.3522)
 
 # Bulletins served by default: criticality published on 2026-11-14 at 14:30
 CRIT_ID = "20261114_1430"

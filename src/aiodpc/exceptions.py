@@ -21,3 +21,11 @@ class DpcLocationError(DpcError):
     This is permanent for the given coordinates (for example a location outside
     Italy or at sea), so retrying does not help.
     """
+
+
+class DpcNoDataError(DpcError):
+    """No published bulletin covers the requested day.
+
+    For example the day after tomorrow, or today when DPC has not published a
+    bulletin for two days.
+    """
