@@ -223,6 +223,12 @@ The tests never reach DPC: a local HTTPS server answers for the DPC hosts.
 `tests/fixtures/real` holds unmodified excerpts of real bulletins to guard the
 data format.
 
+To release, set `__version__` in `src/aiodpc/__init__.py`, describe the
+changes in a `## [X.Y.Z] - Unreleased` section of [CHANGELOG.md](CHANGELOG.md),
+commit, then run `./publish.sh X.Y.Z` (`--dry-run` first to preview). It
+creates the GitHub release with the changelog notes, and the release workflow
+publishes to PyPI.
+
 ## Credits
 
 aiodpc derives from the [DPC Alert](https://github.com/caiosweet/Home-Assistant-custom-components-DPC-Alert)
