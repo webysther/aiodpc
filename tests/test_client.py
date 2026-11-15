@@ -31,8 +31,7 @@ from aiodpc.urls import (
 
 from . import (
     CRIT_ID,
-    LATITUDE,
-    LONGITUDE,
+    NEAR_COMO,
     PARIS,
     PUBLICATION_DAY,
     ROME,
@@ -163,9 +162,7 @@ async def test_criticality_municipality(client: DpcClient, dpc: FakeDpc) -> None
     """Test the criticality looked up by municipality."""
     serve_criticality(dpc)
 
-    bulletin = await client.get_criticality(
-        Location(LATITUDE, LONGITUDE, municipality="Como"), now=PUBLICATION_DAY
-    )
+    bulletin = await client.get_criticality(NEAR_COMO, now=PUBLICATION_DAY)
 
     assert {day.zone for day in bulletin} == {"Lario e Prealpi occidentali"}
     assert {day.level for day in bulletin} == {AlertLevel.RED}
@@ -202,9 +199,7 @@ async def test_vigilance_distance_and_municipality(
     serve_vigilance(dpc)
 
     bulletin = await client.get_vigilance(
-        Location(LATITUDE, LONGITUDE, municipality="Como"),
-        phenomena_within_km=300,
-        now=PUBLICATION_DAY,
+        NEAR_COMO, phenomena_within_km=800, now=PUBLICATION_DAY
     )
 
     assert [item.code for item in bulletin.days[0].phenomena] == [5, 41]

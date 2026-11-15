@@ -40,7 +40,7 @@ from aiodpc.urls import (
     vigilance_preview_url,
 )
 
-from . import CRIT_ID, LATITUDE, LONGITUDE, PARIS, ROME, VIGI_ID, load_json, rome
+from . import CRIT_ID, NEAR_COMO, PARIS, ROME, VIGI_ID, load_json, rome
 
 if TYPE_CHECKING:
     from aiodpc.models import CriticalityDay, VigilanceDay
@@ -91,26 +91,34 @@ def collection(*features: object) -> dict[str, Any]:
 
 
 def criticality(
-    geojson: object, offset: int = 0, municipality: str | None = None
+    geojson: object,
+    offset: int = 0,
+    municipality: str | None = None,
+    *,
+    at: tuple[float, float] = ROME.coordinates,
 ) -> CriticalityDay:
-    """Parse a criticality day at the default location."""
+    """Parse a criticality day at a location, in Rome by default."""
     return parse_criticality_day(
         geojson,
         bulletin_id=CRIT_ID,
         offset=offset,
-        location=Location(LATITUDE, LONGITUDE, municipality),
+        location=Location(*at, municipality),
     )
 
 
 def vigilance(
-    geojson: object, offset: int = 0, municipality: str | None = None
+    geojson: object,
+    offset: int = 0,
+    municipality: str | None = None,
+    *,
+    at: tuple[float, float] = ROME.coordinates,
 ) -> VigilanceDay:
-    """Parse a vigilance day at the default location."""
+    """Parse a vigilance day at a location, in Rome by default."""
     return parse_vigilance_day(
         geojson,
         bulletin_id=VIGI_ID,
         offset=offset,
-        location=Location(LATITUDE, LONGITUDE, municipality),
+        location=Location(*at, municipality),
     )
 
 
@@ -265,12 +273,52 @@ def test_municipality(municipality: str) -> None:
     assert day.level is AlertLevel.YELLOW
 
 
-def test_municipality_of_another_zone() -> None:
-    """Test a municipality whose zones do not contain the coordinates."""
-    day = criticality(load_json("criticality_today.json"), municipality="Como")
+def test_municipality_near_the_coordinates() -> None:
+    """Test a municipality whose zone is near the coordinates, not around them."""
+    day = criticality(
+        load_json("criticality_today.json"),
+        municipality="Como",
+        at=NEAR_COMO.coordinates,
+    )
 
     assert day.zone == "Lario e Prealpi occidentali"
     assert assessments(day) == dict.fromkeys(RiskType, RED)
+
+
+def test_municipality_far_from_the_coordinates(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that a municipality listed only far away is ignored, as another one."""
+    day = criticality(load_json("criticality_today.json"), municipality="Como")
+
+    assert day.zone == "Bacini di Roma"
+    assert "'Como' is in no DPC zone near the location" in caplog.text
+
+
+# Two municipalities named Peglio, in Lombardy and in the Marche
+LARIO = square(45.6, 8.8, 46.4, 9.6)
+MARCHE = square(43.5, 12.2, 44.0, 13.0)
+PEGLIO_LOMBARDY = (46.160, 9.295)
+PEGLIO_MARCHE = (43.696, 12.497)
+
+
+@pytest.mark.parametrize(
+    ("at", "lario_alert", "marche_alert", "expected"),
+    [
+        (PEGLIO_LOMBARDY, "ALLERTA GIALLA", "ALLERTA ROSSA", "Lario"),
+        (PEGLIO_MARCHE, "ALLERTA ROSSA", "ALLERTA GIALLA", "Marche"),
+    ],
+)
+def test_homonym_municipalities(
+    at: tuple[float, float], lario_alert: str, marche_alert: str, expected: str
+) -> None:
+    """Test that each Peglio has its own zone, whatever the level of the other."""
+    geojson = collection(
+        zone("Lario", LARIO, ["Como", "Peglio"], f"Ordinaria / {lario_alert}"),
+        zone("Marche", MARCHE, ["Peglio"], f"Ordinaria / {marche_alert}"),
+    )
+
+    assert criticality(geojson, municipality="Peglio", at=at).zone == expected
 
 
 def test_municipality_in_several_zones() -> None:
@@ -315,11 +363,15 @@ def test_municipality_not_found_outside() -> None:
         )
 
 
-# Far from the default location, in Rome: zones found there are found by name
+# Coarse zones of the north-east, like those of the fixtures
 SOUTH_TYROL = square(46.4, 11.2, 46.6, 11.5)
+TRENTINO = square(45.9, 10.5, 46.4, 11.9)
+VICENZA = square(45.5, 11.4, 45.9, 11.8)
 ABRUZZO = square(42.2, 13.8, 42.4, 14.0)
-VICENZA = square(45.5, 11.5, 45.7, 11.7)
-LAZIO = square(41.5, 12.0, 42.3, 13.0)
+# In the zone of Trentino, 2 km from South Tyrol: zones of South Tyrol are
+# found there by name only
+BORDER = (46.38, 11.3)
+CORVARA_ABRUZZO = (42.275, 13.874)
 
 
 def vigilance_zone(
@@ -348,18 +400,20 @@ def test_bilingual_municipality(municipality: str) -> None:
     criticality_zones = collection(
         zone("Vicenza", VICENZA, ["Bolzano Vicentino"], "Elevata / ALLERTA ROSSA"),
         zone("Alto Adige", SOUTH_TYROL, ["Merano/Meran", "Bolzano/Bozen"]),
-        zone("Bacini di Roma", LAZIO, ["Roma"]),
+        zone("Trentino", TRENTINO, ["Trento"]),
     )
     vigilance_zones = collection(
         vigilance_zone("Vicenza", VICENZA, ["Bolzano Vicentino"], 5),
         vigilance_zone("Alto Adige", SOUTH_TYROL, ["Merano", "Bolzano"], 3),
-        vigilance_zone("Lazio", LAZIO, ["Roma"], 2),
+        vigilance_zone("Trentino", TRENTINO, ["Trento"], 2),
     )
 
-    assert criticality(criticality_zones, municipality=municipality).zone == (
-        "Alto Adige"
+    zones = (
+        criticality(criticality_zones, municipality=municipality, at=BORDER).zone,
+        vigilance(vigilance_zones, municipality=municipality, at=BORDER).zone,
     )
-    assert vigilance(vigilance_zones, municipality=municipality).zone == "Alto Adige"
+
+    assert zones == ("Alto Adige", "Alto Adige")
 
 
 @pytest.mark.parametrize(
@@ -374,43 +428,79 @@ def test_municipality_written_differently(municipality: str, listed: str) -> Non
     """Test municipalities that the vigilance bulletin writes differently."""
     geojson = collection(
         vigilance_zone("Alto Adige", SOUTH_TYROL, [listed], 3),
-        vigilance_zone("Lazio", LAZIO, ["Roma"], 2),
+        vigilance_zone("Trentino", TRENTINO, ["Trento"], 2),
     )
 
-    assert vigilance(geojson, municipality=municipality).zone == "Alto Adige"
+    assert vigilance(geojson, municipality=municipality, at=BORDER).zone == (
+        "Alto Adige"
+    )
 
 
 @pytest.mark.parametrize(
-    ("municipality", "south_tyrol_alert", "abruzzo_alert", "expected"),
+    ("at", "expected"),
     [
-        # Listed as written in Abruzzo: South Tyrol is not a candidate
-        ("Corvara", "ALLERTA ROSSA", "ALLERTA GIALLA", "Abruzzo"),
-        # Its other names do not include the Corvara of Abruzzo
-        ("Corvara in Badia", "ALLERTA GIALLA", "ALLERTA ROSSA", "Alto Adige"),
+        (CORVARA_ABRUZZO, "Abruzzo"),
+        # As written, only in Abruzzo, too far: its other names are tried
+        (BORDER, "Alto Adige"),
     ],
 )
-def test_municipality_as_written_first(
-    municipality: str, south_tyrol_alert: str, abruzzo_alert: str, expected: str
-) -> None:
-    """Test that a name listed as written wins over the other names."""
+def test_homonym_by_another_name(at: tuple[float, float], expected: str) -> None:
+    """Test "Corvara": in Abruzzo, and the German name of Corvara in Badia."""
+    geojson = collection(
+        zone("Alto Adige", SOUTH_TYROL, ["Corvara in Badia/Corvara"]),
+        zone("Trentino", TRENTINO, ["Trento"]),
+        zone("Abruzzo", ABRUZZO, ["Corvara"], "Elevata / ALLERTA ROSSA"),
+    )
+
+    assert criticality(geojson, municipality="Corvara", at=at).zone == expected
+
+
+def test_homonym_of_another_name() -> None:
+    """Test Corvara in Badia as listed in criticality, in the vigilance.
+
+    The vigilance bulletin lists it as "Corvara in Badia", and "Corvara", its
+    German name, is the Corvara of Abruzzo, too far.
+    """
+    geojson = collection(
+        vigilance_zone("Alto Adige", SOUTH_TYROL, ["Corvara in Badia"], 1),
+        vigilance_zone("Trentino", TRENTINO, ["Trento"], 2),
+        vigilance_zone("Abruzzo", ABRUZZO, ["Corvara"], 5),
+    )
+
+    day = vigilance(geojson, municipality="Corvara in Badia/Corvara", at=BORDER)
+
+    assert day.zone == "Alto Adige"
+
+
+def test_municipality_as_written_first() -> None:
+    """Test that a zone listing the name as written wins over its other names.
+
+    "Corvara" is a municipality of Abruzzo and the German name of Corvara in
+    Badia: were they near each other, "Corvara" would be the one of Abruzzo.
+    """
     geojson = collection(
         zone(
             "Alto Adige",
             SOUTH_TYROL,
             ["Corvara in Badia/Corvara"],
-            f"Ordinaria / {south_tyrol_alert}",
+            "Elevata / ALLERTA ROSSA",
         ),
-        zone("Abruzzo", ABRUZZO, ["Corvara"], f"Ordinaria / {abruzzo_alert}"),
+        zone("Trentino", TRENTINO, ["Corvara"]),
     )
 
-    assert criticality(geojson, municipality=municipality).zone == expected
+    assert criticality(geojson, municipality="Corvara", at=BORDER).zone == "Trentino"
+    assert criticality(geojson, municipality="Corvara in Badia", at=BORDER).zone == (
+        "Alto Adige"
+    )
 
 
 def test_unusual_features_are_skipped() -> None:
     """Test features without geometry, area or municipalities."""
     geojson = collection(
-        zone("Senza geometria", None, None),
-        zone("Punto", {"type": "Point", "coordinates": [12.5, 41.9]}, 42),
+        zone("Senza geometria", None, ["Roma"]),
+        zone("Punto", {"type": "Point", "coordinates": [12.5, 41.9]}, ["Roma"]),
+        zone("Senza comuni", None, None),
+        zone("Comuni illeggibili", None, 42),
         {
             "type": "Feature",
             "geometry": square(41.5, 12.0, 42.3, 13.0),
@@ -444,6 +534,16 @@ def test_unexpected_format(geojson: object) -> None:
     """Test that unexpected data raises a parse error."""
     with pytest.raises(DpcParseError):
         criticality(geojson)
+
+
+def test_unexpected_geometry_of_a_municipality() -> None:
+    """Test that a zone listing the municipality with a broken geometry raises."""
+    geojson = collection(
+        zone("Rotta", {"type": "Polygon", "coordinates": [[[12.5]]]}, ["Roma"])
+    )
+
+    with pytest.raises(DpcParseError):
+        criticality(geojson, municipality="Roma")
 
 
 def test_location_in_zones() -> None:
@@ -484,7 +584,11 @@ def test_vigilance(
 
 def test_vigilance_municipality() -> None:
     """Test the vigilance looked up by municipality."""
-    day = vigilance(load_json("vigilance_oggi.json"), municipality="Como")
+    day = vigilance(
+        load_json("vigilance_oggi.json"),
+        municipality="Como",
+        at=NEAR_COMO.coordinates,
+    )
 
     assert day.zone == "Lombardia centrale settore occidentale"
     assert day.precipitation is Precipitation.HEAVY
@@ -627,7 +731,7 @@ def test_alert_zone_of_a_location() -> None:
     """Test the zone containing a location; its municipality is not used."""
     geojson = load_json("criticality_today.json")
 
-    zone = parse_alert_zone(geojson, Location(LATITUDE, LONGITUDE, "Como"))
+    zone = parse_alert_zone(geojson, Location(*ROME.coordinates, "Como"))
 
     assert (zone.name, zone.municipalities) == (
         "Bacini di Roma",

@@ -5,6 +5,25 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.4.1] - Unreleased
+
+### Fixed
+
+- A municipality is looked up only in the zones near its location, within
+  60 km. DPC lists the municipalities by name, and a few names belong to two
+  municipalities far apart: Peglio, in Lombardy and in the Marche, got the
+  highest alert of both. So did Livo, Samone, Castro, San Teodoro, Calliano
+  and Valverde. Each now gets its own zone. A municipality listed only far
+  from the location is ignored, with a warning, and the coordinates are used.
+- "Corvara in Badia/Corvara", as the criticality bulletin lists it, no longer
+  matches the Corvara of Abruzzo in the vigilance bulletin.
+
+### Added
+
+- `aiodpc.geo.distance_to_area_km()`: the distance from a point to a Polygon
+  or MultiPolygon, 0 inside it.
+- `aiodpc.parsers.MUNICIPALITY_RADIUS_KM`, the 60 km above.
+
 ## [0.4.0] - 2026-11-14
 
 ### Added
@@ -133,6 +152,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.4.1]: https://github.com/webysther/aiodpc/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/webysther/aiodpc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/webysther/aiodpc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/webysther/aiodpc/compare/v0.2.0...v0.2.1

@@ -25,6 +25,9 @@ LONGITUDE = 12.5
 ROME = Location(LATITUDE, LONGITUDE)
 # A location in Paris, outside every DPC zone
 PARIS = Location(48.8566, 2.3522)
+# 1 km north of the zones of Como in the fixtures: in no zone, so located by
+# its municipality only
+NEAR_COMO = Location(46.01, 9.0, municipality="Como")
 
 # Bulletins served by default: criticality published on 2026-11-14 at 14:30
 CRIT_ID = "20261114_1430"

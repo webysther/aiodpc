@@ -11,7 +11,6 @@ from aiodpc import (
     DpcClient,
     DpcLocationError,
     DpcParseError,
-    Location,
     VigilanceMap,
 )
 from aiodpc.parsers import GeoJsonFeatures, parse_criticality_day
@@ -19,8 +18,7 @@ from aiodpc.urls import criticality_geojson_url
 
 from . import (
     CRIT_ID,
-    LATITUDE,
-    LONGITUDE,
+    NEAR_COMO,
     PARIS,
     PUBLICATION_DAY,
     ROME,
@@ -34,8 +32,6 @@ from . import (
 if TYPE_CHECKING:
     from .server import FakeDpc
 
-COMO = Location(LATITUDE, LONGITUDE, municipality="Como")
-
 
 async def test_criticality_map_is_downloaded_once(
     client: DpcClient, dpc: FakeDpc
@@ -46,7 +42,7 @@ async def test_criticality_map_is_downloaded_once(
     criticality = await client.get_criticality_map(now=PUBLICATION_DAY)
     downloads = list(dpc.requests)
     rome_bulletin = criticality.at(ROME)
-    como_bulletin = criticality.at(COMO)
+    como_bulletin = criticality.at(NEAR_COMO)
 
     assert dpc.requests == downloads
     assert len(downloads) == 3  # the page and the 2 days
@@ -134,7 +130,9 @@ def test_maps_from_decoded_files() -> None:
         [(0, load_json("vigilance_oggi.json"), load_json("phenomena_oggi.json"))],
     )
 
-    assert criticality.at(ROME).today == criticality.at(ROME).days[0]
+    assert (
+        criticality.at(ROME).on(PUBLICATION_DAY.date()) == criticality.at(ROME).days[0]
+    )
     assert [day.offset for day in vigilance.at(ROME)] == [0]
 
 

@@ -140,11 +140,12 @@ def calendar_date(day: Day | dt.date) -> dt.date:
 class Location:
     """A place in Italy: coordinates and, optionally, the municipality.
 
-    With a ``municipality`` (e.g. ``"Roma"``), every zone listing it is
+    With a ``municipality`` (e.g. ``"Roma"``), every zone listing it near the
+    coordinates (see :data:`aiodpc.parsers.MUNICIPALITY_RADIUS_KM`) is
     considered and the one with the highest level is used, since large
-    municipalities span several zones. In South Tyrol either the Italian or the
-    German name works (``"Bolzano"`` or ``"Bozen"``). Raises ``ValueError`` for
-    invalid coordinates.
+    municipalities span several zones. In South Tyrol either the Italian or
+    the German name works (``"Bolzano"`` or ``"Bozen"``). Raises
+    ``ValueError`` for invalid coordinates.
     """
 
     latitude: float

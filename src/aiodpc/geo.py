@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any, Final
 
 from geojson_utils import point_distance, point_in_polygon
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterator, Mapping, Sequence
 
 COMPASS_POINTS: Final = (
     "N",
@@ -29,6 +30,9 @@ COMPASS_POINTS: Final = (
     "NNW",
 )
 
+EARTH_RADIUS_KM: Final = 6371.0088
+"""Mean radius of the Earth."""
+
 _AREA_TYPES: Final = frozenset({"Polygon", "MultiPolygon"})
 
 
@@ -48,6 +52,59 @@ def point_in_area(
     if geometry.get("type") not in _AREA_TYPES:
         return False
     return bool(point_in_polygon(geojson_point(latitude, longitude), dict(geometry)))
+
+
+def distance_to_area_km(
+    latitude: float, longitude: float, geometry: Mapping[str, Any]
+) -> float:
+    """Return the distance in km from a point to a Polygon or MultiPolygon.
+
+    It is 0 inside the area or on its boundary, and infinite for other geometry
+    types. Outside, it is the distance to the nearest edge on a plane tangent at
+    the point, within about 1% up to a few hundred km.
+    """
+    if geometry.get("type") not in _AREA_TYPES:
+        return math.inf
+    if point_in_area(latitude, longitude, geometry):
+        return 0.0
+    km_per_radian_of_longitude = EARTH_RADIUS_KM * math.cos(math.radians(latitude))
+
+    def plane(position: Sequence[float]) -> tuple[float, float]:
+        """Return a GeoJSON position on the plane, in km from the point."""
+        return (
+            math.radians(position[0] - longitude) * km_per_radian_of_longitude,
+            math.radians(position[1] - latitude) * EARTH_RADIUS_KM,
+        )
+
+    return min(
+        (
+            _distance_from_origin(start, end)
+            for ring in _rings(geometry)
+            for start, end in pairwise(map(plane, ring))
+        ),
+        default=math.inf,
+    )
+
+
+def _rings(geometry: Mapping[str, Any]) -> Iterator[Sequence[Sequence[float]]]:
+    """Yield the rings of a Polygon or MultiPolygon: its outlines and holes."""
+    polygons = geometry["coordinates"]
+    if geometry["type"] == "Polygon":
+        polygons = [polygons]
+    for polygon in polygons:
+        yield from polygon
+
+
+def _distance_from_origin(
+    start: tuple[float, float], end: tuple[float, float]
+) -> float:
+    """Return the distance from the origin to a segment of the plane."""
+    (x, y), (dx, dy) = start, (end[0] - start[0], end[1] - start[1])
+    length_squared = dx * dx + dy * dy
+    # Fraction of the segment where it is nearest to the origin
+    t = 0.0 if length_squared == 0 else -(x * dx + y * dy) / length_squared
+    t = min(1.0, max(0.0, t))
+    return math.hypot(x + t * dx, y + t * dy)
 
 
 def distance_km(point_a: tuple[float, float], point_b: tuple[float, float]) -> float:

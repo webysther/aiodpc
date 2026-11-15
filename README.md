@@ -174,9 +174,15 @@ aiodpc does not use them and keeps working when the data is incomplete.
 
 With `dpc.location(41.9, 12.5, municipality="Roma")` or
 `Location(41.9, 12.5, municipality="Roma")`, the zones that list the
-municipality are considered and the one with the highest level is used; `zone`
-is the zone containing the coordinates. Large municipalities span several
-zones.
+municipality within 60 km of the coordinates are considered and the one with
+the highest level is used; `zone` is the zone containing the coordinates.
+Large municipalities span several zones.
+
+DPC lists the municipalities by name, and a few names belong to two
+municipalities far apart, such as Peglio, in Lombardy and in the Marche: the
+zones far from the coordinates list the other one. When no zone near the
+coordinates lists the municipality, the zone containing them is used, with a
+warning.
 
 In South Tyrol either the Italian or the German name works (`"Bolzano"` or
 `"Bozen"`), although DPC writes them as `"Bolzano/Bozen"` in the criticality

@@ -16,7 +16,12 @@ from typing import Any, Final, NamedTuple
 
 from .const import ROME_TZ
 from .exceptions import DpcLocationError, DpcParseError
-from .geo import calculate_initial_compass_bearing, distance_km, point_in_area
+from .geo import (
+    calculate_initial_compass_bearing,
+    distance_km,
+    distance_to_area_km,
+    point_in_area,
+)
 from .models import (
     AlertLevel,
     AlertZone,
@@ -96,6 +101,16 @@ RISK_PROPERTIES: Final[Mapping[RiskType, str]] = {
     RiskType.HYDROGEOLOGICAL: "Per rischio idrogeologico",
 }
 """Properties of the criticality GeoJSON holding the assessment of each risk."""
+
+MUNICIPALITY_RADIUS_KM: Final = 60.0
+"""Distance within which the zones listing a municipality are those of a location.
+
+DPC lists municipalities by name, and a few names belong to municipalities far
+apart, such as Peglio, in Lombardy and in the Marche. Every point of Rome, the
+largest municipality, is within 50 km of the five zones listing it, while the
+nearest homonyms, the two Livo, are about 90 km from each other's zones.
+"""
+
 # The criticality and vigilance files spell some properties differently.
 _ZONE_NAME_PROPERTIES: Final = ("Nome zona", "Nome_Zona")
 _MUNICIPALITIES_PROPERTIES: Final = ("Comuni", "comuni")
@@ -274,14 +289,31 @@ def _features(geojson: object) -> tuple[_Feature, ...]:
     return tuple(result)
 
 
+_INVALID_GEOMETRY: Final = "DPC GeoJSON has an invalid zone geometry"
+_GEOMETRY_ERRORS: Final = (KeyError, IndexError, TypeError, ValueError)
+
+
 def _contains(feature: _Feature, location: Location) -> bool:
+    """Return whether a zone contains a location."""
     if feature.geometry is None:
         return False
     try:
         return point_in_area(location.latitude, location.longitude, feature.geometry)
-    except (KeyError, IndexError, TypeError, ValueError) as err:
-        msg = "DPC GeoJSON has an invalid zone geometry"
-        raise DpcParseError(msg) from err
+    except _GEOMETRY_ERRORS as err:
+        raise DpcParseError(_INVALID_GEOMETRY) from err
+
+
+def _near(feature: _Feature, location: Location) -> bool:
+    """Return whether a zone is within :data:`MUNICIPALITY_RADIUS_KM` of a location."""
+    if feature.geometry is None:
+        return False
+    try:
+        distance = distance_to_area_km(
+            location.latitude, location.longitude, feature.geometry
+        )
+    except _GEOMETRY_ERRORS as err:
+        raise DpcParseError(_INVALID_GEOMETRY) from err
+    return distance <= MUNICIPALITY_RADIUS_KM
 
 
 def _zone_name(properties: Mapping[str, Any]) -> str:
@@ -303,33 +335,39 @@ def _municipalities(properties: Mapping[str, Any]) -> list[str]:
     return []
 
 
-def _listing(features: Sequence[_Feature], municipality: str) -> list[_Feature]:
-    """Return the features whose municipalities include ``municipality``.
+def _listing(
+    features: Sequence[_Feature], municipality: str, location: Location
+) -> list[_Feature]:
+    """Return the zones near a location that list its municipality.
+
+    Zones farther than :data:`MUNICIPALITY_RADIUS_KM` list another municipality
+    of the same name: for a location in Lombardy, the Peglio of the Marche.
 
     The name is looked up as written first, ignoring case and spacing. Only when
-    no zone lists it are its other names tried (see :mod:`aiodpc.municipalities`):
-    "Bozen" finds "Bolzano/Bozen" and "Bolzano", while "Corvara" stays the
-    municipality of Abruzzo and not "Corvara in Badia/Corvara".
+    no zone near the location lists it are its other names tried (see
+    :mod:`aiodpc.municipalities`): "Bozen" finds "Bolzano/Bozen" and "Bolzano",
+    and "Corvara" is "Corvara in Badia/Corvara" in South Tyrol, but stays the
+    Corvara of Abruzzo where both are near.
     """
     wanted = normalize(municipality)
-    listing = [
-        feature
-        for feature in features
-        if any(
-            normalize(name) == wanted for name in _municipalities(feature.properties)
-        )
-    ]
-    if listing:
-        return listing
     names = municipality_names(municipality)
-    return [
-        feature
-        for feature in features
-        if any(
-            names & municipality_names(name)
-            for name in _municipalities(feature.properties)
-        )
-    ]
+
+    def as_written(listed: str) -> bool:
+        return normalize(listed) == wanted
+
+    def by_any_name(listed: str) -> bool:
+        return not names.isdisjoint(municipality_names(listed))
+
+    for lists in (as_written, by_any_name):
+        listing = [
+            feature
+            for feature in features
+            if any(map(lists, _municipalities(feature.properties)))
+            and _near(feature, location)
+        ]
+        if listing:
+            return listing
+    return []
 
 
 def _select_zone(
@@ -339,18 +377,18 @@ def _select_zone(
 ) -> _Zone:
     """Return the zone of a location.
 
-    With a municipality, the zones listing it (see :func:`_listing`) are
-    candidates and the one with the highest level wins (the first one on ties);
-    its name is replaced by the name of the candidate containing the
-    coordinates, if any. Without a municipality, or when no zone lists it, the
-    zone containing the coordinates is used.
+    With a municipality, the zones near the location listing it (see
+    :func:`_listing`) are candidates and the one with the highest level wins
+    (the first one on ties); its name is replaced by the name of the candidate
+    containing the coordinates, if any. Without a municipality, or when no zone
+    near the location lists it, the zone containing the coordinates is used.
     """
     municipality = location.municipality
     if municipality and municipality.strip():
         best: _Feature | None = None
         best_level = 0
         point_zone_name = ""
-        for feature in _listing(features, municipality):
+        for feature in _listing(features, municipality, location):
             if not point_zone_name and _contains(feature, location):
                 point_zone_name = _zone_name(feature.properties)
             feature_level = level(feature.properties)
@@ -360,7 +398,9 @@ def _select_zone(
             name = point_zone_name or _zone_name(best.properties)
             return _Zone(best.properties, name)
         _LOGGER.warning(
-            "Municipality %r is in no DPC zone, using the coordinates", municipality
+            "Municipality %r is in no DPC zone near the location, using the"
+            " coordinates",
+            municipality,
         )
     for feature in features:
         if _contains(feature, location):

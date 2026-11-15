@@ -22,7 +22,7 @@ from aiodpc import (
 from aiodpc.monitor import LATEST_ID_CHECK_INTERVAL
 from aiodpc.urls import criticality_geojson_url
 
-from . import LATITUDE, LONGITUDE, load_fixture, serve_criticality
+from . import LATITUDE, LONGITUDE, NEAR_COMO, load_fixture, serve_criticality
 
 if TYPE_CHECKING:
     from aiodpc import DpcClient
@@ -102,7 +102,7 @@ async def test_no_risk(client: DpcClient, dpc: FakeDpc) -> None:
 async def test_municipality(client: DpcClient, dpc: FakeDpc) -> None:
     """Test a location whose municipality is in a red zone."""
     serve_criticality(dpc, TODAY_ID)
-    home = client.location(LATITUDE, LONGITUDE, municipality="Como")
+    home = client.location(*NEAR_COMO.coordinates, municipality="Como")
 
     risk = await home.risk()
 
