@@ -5,6 +5,24 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.5.0] - Unreleased
+
+### Added
+
+- `Day.AFTER_TOMORROW` and `VigilanceBulletin.after_tomorrow`: the third day
+  of the vigilance bulletin, looked up by date like `today` and `tomorrow`.
+  The criticality bulletin covers only today and tomorrow.
+- `Phenomenon.key`: what identifies a phenomenon among those of its day, its
+  code and position (e.g. `"5@41.57313417,12.67477485"`). A later bulletin
+  with the same phenomenon at the same place, for the same day, gives the
+  same key, whatever location it is read at.
+
+### Changed
+
+- `Day` has a third member, `AFTER_TOMORROW`. Code that iterates over `Day`
+  for the days of the criticality bulletin gets it too: list them instead,
+  `(Day.TODAY, Day.TOMORROW)`.
+
 ## [0.4.1] - 2026-11-15
 
 ### Fixed
@@ -152,6 +170,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.5.0]: https://github.com/webysther/aiodpc/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/webysther/aiodpc/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/webysther/aiodpc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/webysther/aiodpc/compare/v0.2.1...v0.3.0

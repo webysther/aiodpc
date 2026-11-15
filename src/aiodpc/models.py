@@ -117,10 +117,15 @@ def rome_date(now: dt.datetime | None = None) -> dt.date:
 
 
 class Day(Enum):
-    """A day relative to the current Italian date."""
+    """A day relative to the current Italian date.
+
+    The criticality bulletin covers today and tomorrow, the vigilance bulletin
+    the day after tomorrow too.
+    """
 
     TODAY = 0
     TOMORROW = 1
+    AFTER_TOMORROW = 2
 
     def date(self, now: dt.datetime | None = None) -> dt.date:
         """Return the calendar date of the day at ``now`` (default: now)."""
@@ -270,6 +275,17 @@ class Phenomenon:
     bulletin_date: str | None
     """DPC ``data_bollettino`` of the phenomenon, as provided."""
 
+    @property
+    def key(self) -> str:
+        """Return what identifies the phenomenon among those of its day.
+
+        Its code and position, e.g. ``"5@41.57313417,12.67477485"``: a later
+        bulletin with the same phenomenon at the same place, for the same day,
+        gives the same key. The distance and direction are not part of it:
+        they depend on the location the bulletin was read at.
+        """
+        return f"{self.code}@{self.latitude},{self.longitude}"
+
     def __str__(self) -> str:
         """Return e.g. ``"precipitation: rovesci o temporali..., 39.1 km SSE"``."""
         what = (
@@ -357,7 +373,7 @@ class VigilanceBulletin(_Days[VigilanceDay]):
     """A weather vigilance bulletin for a location, day by day.
 
     Iterate over it for the days, or look one up with :attr:`today`,
-    :attr:`tomorrow` or :meth:`on`.
+    :attr:`tomorrow`, :attr:`after_tomorrow` or :meth:`on`.
     """
 
     id: str
@@ -366,6 +382,11 @@ class VigilanceBulletin(_Days[VigilanceDay]):
     """Publication day in the ID."""
     days: tuple[VigilanceDay, ...]
     """Forecast days, in order; expired days may have been skipped."""
+
+    @property
+    def after_tomorrow(self) -> VigilanceDay | None:
+        """Return the day after the next Italian day, if the bulletin covers it."""
+        return self.on(Day.AFTER_TOMORROW)
 
 
 @dataclass(frozen=True, slots=True)
