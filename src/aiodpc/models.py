@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Final, Protocol
 from .const import ROME_TZ
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
 _MAX_LATITUDE: Final = 90.0
 _MAX_LONGITUDE: Final = 180.0
@@ -93,6 +93,98 @@ class PhenomenonCategory(StrEnum):
     SEA = "sea"
     WAVE_MOTION = "wave_motion"
     TEMPERATURE = "temperature"
+
+
+class PhenomenonType(StrEnum):
+    """Type of a weather phenomenon of the vigilance bulletin, from its DPC code.
+
+    The names say in English what the DPC legend says in Italian, which
+    :attr:`Phenomenon.description` keeps as DPC writes it. Each type belongs to
+    one :class:`PhenomenonCategory`.
+    """
+
+    SCATTERED_RAIN = "scattered_rain"
+    """1, "piogge sparse o intermittenti": scattered or intermittent rain."""
+    WIDESPREAD_RAIN = "widespread_rain"
+    """2, "piogge diffuse e continue": widespread and continuous rain."""
+    LIGHT_SNOW = "light_snow"
+    """3, "nevicate deboli o moderate": light or moderate snowfall."""
+    HEAVY_SNOW = "heavy_snow"
+    """4, "nevicate abbondanti": heavy snowfall."""
+    ISOLATED_THUNDERSTORMS = "isolated_thunderstorms"
+    """5, "rovesci o temporali a carattere isolato": isolated showers or storms."""
+    SCATTERED_THUNDERSTORMS = "scattered_thunderstorms"
+    """6, "rovesci o temporali a carattere sparso": scattered showers or storms."""
+    WIDESPREAD_THUNDERSTORMS = "widespread_thunderstorms"
+    """7, "rovesci o temporali a carattere diffuso": widespread showers or storms."""
+    STRONG_WIND = "strong_wind"
+    """10, "forti": strong wind."""
+    GALE = "gale"
+    """11, "burrasca": gale."""
+    STORM = "storm"
+    """12, "tempesta": storm."""
+    FREQUENT_GUSTS = "frequent_gusts"
+    """13, "frequenti raffiche": frequent gusts."""
+    ICE_ON_HILLS = "ice_on_hills"
+    """20, "diffusa formazione di ghiaccio al suolo a quote collinari"."""
+    ICE_ON_PLAINS = "ice_on_plains"
+    """21, "diffusa formazione di ghiaccio al suolo a quote di pianura"."""
+    NIGHT_FOG = "night_fog"
+    """30, "diffuse nelle ore notturne e del primo mattino": fog at night."""
+    PERSISTENT_FOG = "persistent_fog"
+    """31, "diffuse e persistenti anche nelle ore diurne": fog also by day."""
+    MODERATE_SEA = "moderate_sea"
+    """40, "molto mosso": moderate sea, 4 on the Douglas scale."""
+    ROUGH_SEA = "rough_sea"
+    """41, "agitato o molto agitato": rough or very rough sea, 5 or 6."""
+    HIGH_SEA = "high_sea"
+    """42, "grosso o molto grosso": high or very high sea, 7 or 8."""
+    RISING_WAVES = "rising_waves"
+    """50, "in aumento": waves rising."""
+    FALLING_WAVES = "falling_waves"
+    """51, "in diminuzione": waves falling."""
+    HIGH_TEMPERATURES = "high_temperatures"
+    """60, "elevate o in sensibile aumento": high or noticeably rising."""
+    VERY_HIGH_TEMPERATURES = "very_high_temperatures"
+    """61, "molto elevate o in marcato aumento": very high or sharply rising."""
+    LOW_TEMPERATURES = "low_temperatures"
+    """62, "basse o in sensibile calo": low or noticeably falling."""
+    VERY_LOW_TEMPERATURES = "very_low_temperatures"
+    """63, "molto basse o in marcato calo": very low or sharply falling."""
+
+    @classmethod
+    def of(cls, code: int) -> PhenomenonType | None:
+        """Return the type of a DPC phenomenon code; None when it is unknown."""
+        return PHENOMENON_TYPE_CODES.get(code)
+
+
+PHENOMENON_TYPE_CODES: Final[Mapping[int, PhenomenonType]] = {
+    1: PhenomenonType.SCATTERED_RAIN,
+    2: PhenomenonType.WIDESPREAD_RAIN,
+    3: PhenomenonType.LIGHT_SNOW,
+    4: PhenomenonType.HEAVY_SNOW,
+    5: PhenomenonType.ISOLATED_THUNDERSTORMS,
+    6: PhenomenonType.SCATTERED_THUNDERSTORMS,
+    7: PhenomenonType.WIDESPREAD_THUNDERSTORMS,
+    10: PhenomenonType.STRONG_WIND,
+    11: PhenomenonType.GALE,
+    12: PhenomenonType.STORM,
+    13: PhenomenonType.FREQUENT_GUSTS,
+    20: PhenomenonType.ICE_ON_HILLS,
+    21: PhenomenonType.ICE_ON_PLAINS,
+    30: PhenomenonType.NIGHT_FOG,
+    31: PhenomenonType.PERSISTENT_FOG,
+    40: PhenomenonType.MODERATE_SEA,
+    41: PhenomenonType.ROUGH_SEA,
+    42: PhenomenonType.HIGH_SEA,
+    50: PhenomenonType.RISING_WAVES,
+    51: PhenomenonType.FALLING_WAVES,
+    60: PhenomenonType.HIGH_TEMPERATURES,
+    61: PhenomenonType.VERY_HIGH_TEMPERATURES,
+    62: PhenomenonType.LOW_TEMPERATURES,
+    63: PhenomenonType.VERY_LOW_TEMPERATURES,
+}
+"""The type of each DPC phenomenon code (``id_fenomeno``), as in the legend."""
 
 
 class BulletinKind(StrEnum):
@@ -274,6 +366,11 @@ class Phenomenon:
     """DPC ``id_bollettino`` of the phenomenon, as provided."""
     bulletin_date: str | None
     """DPC ``data_bollettino`` of the phenomenon, as provided."""
+
+    @property
+    def type(self) -> PhenomenonType | None:
+        """Return the type of the phenomenon, None when the code is unknown."""
+        return PhenomenonType.of(self.code)
 
     @property
     def key(self) -> str:

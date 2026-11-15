@@ -94,8 +94,10 @@ A criticality day has the `level` of its zone and the assessment of each risk
 type: `day.hydraulic`, `day.thunderstorms`, `day.hydrogeological` (all of them
 in `day.risks`). A vigilance day has the expected `precipitation` (a
 `Precipitation`, from `none` to `very_heavy`) and the significant `phenomena`
-near the location. A phenomenon's `key`, its code and position, identifies it
-among those of its day, from one bulletin to the next.
+near the location. A phenomenon's `type` (a `PhenomenonType`, such as
+`light_snow`) says in English what its Italian `description` says, and its
+`key`, its code and position, identifies it among those of its day, from one
+bulletin to the next.
 
 Pass your own session with `DpcClient(session)`; the client never closes a
 session it did not create.

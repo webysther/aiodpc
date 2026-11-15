@@ -33,6 +33,7 @@ from .models import (
     Location,
     Phenomenon,
     PhenomenonCategory,
+    PhenomenonType,
     Precipitation,
     Risk,
     RiskAssessment,
@@ -43,7 +44,7 @@ from .models import (
 )
 from .monitor import MonitoredLocation
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "ATTRIBUTION",
@@ -71,6 +72,7 @@ __all__ = [
     "MonitoredLocation",
     "Phenomenon",
     "PhenomenonCategory",
+    "PhenomenonType",
     "Precipitation",
     "Risk",
     "RiskAssessment",

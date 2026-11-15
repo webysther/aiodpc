@@ -5,6 +5,17 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.6.0] - Unreleased
+
+### Added
+
+- `PhenomenonType` and `Phenomenon.type`: the type of a weather phenomenon,
+  one per code of the DPC legend, named in English (`light_snow`,
+  `moderate_sea`, `rising_waves`...), for applications that show it in their
+  own language. `Phenomenon.description` keeps the legend as DPC writes it,
+  in Italian. `PhenomenonType.of(code)` and
+  `aiodpc.models.PHENOMENON_TYPE_CODES` map the codes to the types.
+
 ## [0.5.0] - 2026-11-15
 
 ### Added
@@ -170,6 +181,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.6.0]: https://github.com/webysther/aiodpc/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/webysther/aiodpc/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/webysther/aiodpc/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/webysther/aiodpc/compare/v0.3.0...v0.4.0

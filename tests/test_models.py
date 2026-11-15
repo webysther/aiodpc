@@ -16,6 +16,7 @@ from aiodpc import (
     Location,
     Phenomenon,
     PhenomenonCategory,
+    PhenomenonType,
     Precipitation,
     Risk,
     RiskAssessment,
@@ -24,7 +25,8 @@ from aiodpc import (
     VigilanceDay,
     rome_date,
 )
-from aiodpc.parsers import end_of_day
+from aiodpc.models import PHENOMENON_TYPE_CODES
+from aiodpc.parsers import PHENOMENON_TYPES, end_of_day
 
 from . import rome
 
@@ -320,6 +322,17 @@ def test_phenomenon_text() -> None:
 
     assert str(known) == "wind: forti, 30.4 km WSW"
     assert str(unknown) == "phenomenon 99, 30.4 km WSW"
+    assert known.type is PhenomenonType.STRONG_WIND
+    assert unknown.type is None
+
+
+def test_every_phenomenon_code_has_a_type() -> None:
+    """Test that the types cover exactly the codes of the DPC legend."""
+    assert PHENOMENON_TYPE_CODES.keys() == PHENOMENON_TYPES.keys()
+    assert len(set(PHENOMENON_TYPE_CODES.values())) == len(PhenomenonType)
+    assert PhenomenonType.of(40) is PhenomenonType.MODERATE_SEA
+    assert PhenomenonType.of(99) is None
+    assert str(PhenomenonType.LIGHT_SNOW) == "light_snow"
 
 
 def test_phenomenon_key() -> None:
