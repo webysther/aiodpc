@@ -24,12 +24,50 @@ pip install aiodpc
 
 Python 3.13 or later is required.
 
-## Usage
+## Tutorial: from one question to the whole country
 
-aiodpc has three levels, from the simplest to the rawest: ask whether a place
-has a risk, read the bulletins day by day, or get the DPC files as they are.
+This tutorial grows like a math class: it starts with a yes or no about one
+place and ends with every zone of Italy. It follows a practical story: a
+network of **community kitchens** in several Italian cities that wants to warn
+its volunteers and guests the day before an alert. The same steps serve a
+school, a sports club, a parish, a farm or a town hall.
 
-### Is there a risk here?
+Every example is a complete script: copy, paste and run it. The outputs shown
+are real, from the bulletins of 15 November 2026.
+
+The [tutorial notebook](https://github.com/webysther/aiodpc/blob/main/examples/tutorial.ipynb)
+tells the same story with the maps of the alerts and the weather phenomena,
+drawn from the data.
+
+### 1. One place, one question
+
+The simplest question has a yes or no answer: is there an alert in Rome
+today? An alert is any level from yellow up.
+
+```python
+import asyncio
+
+from aiodpc import DpcClient
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        rome = dpc.location(41.9, 12.5)
+        print(await rome.has_risk())
+
+
+asyncio.run(main())
+```
+
+```text
+False
+```
+
+### 2. Which risk, and until when
+
+A yes needs more: which level, which risk and until when. The bulletin is
+published in the afternoon and also covers tomorrow, which leaves time to warn
+people.
 
 ```python
 import asyncio
@@ -39,25 +77,31 @@ from aiodpc import Day, DpcClient
 
 async def main() -> None:
     async with DpcClient() as dpc:
-        home = dpc.location(41.9, 12.5)
-
-        if await home.has_risk():
-            risk = await home.risk()
-            print(f"Alert today: {risk}")  # Alert today: orange (hydrogeological)
-            print(risk.description)  # Moderata per rischio idrogeologico
-            print(f"Valid until {risk.valid_until}")
-
-        if await home.has_risk(Day.TOMORROW):
-            print(f"Alert tomorrow: {await home.risk(Day.TOMORROW)}")
+        rome = dpc.location(41.9, 12.5)
+        for day in (Day.TODAY, Day.TOMORROW):
+            risk = await rome.risk(day)
+            print(f"{day.date()}: {risk}")
+            print(f"  DPC says: {risk.description}")
+            print(f"  valid until {risk.valid_until:%Y-%m-%d %H:%M}")
 
 
 asyncio.run(main())
 ```
 
+```text
+2026-11-15: green
+  DPC says: Assenza di fenomeni significativi prevedibili
+  valid until 2026-11-16 00:00
+2026-11-16: yellow (hydrogeological)
+  DPC says: Ordinaria per rischio idrogeologico
+  valid until 2026-11-17 00:00
+```
+
 A risk has:
 
 - `level`: an `AlertLevel`, `green`, `yellow`, `orange` or `red`. Levels are
-  ordered (`risk.level >= AlertLevel.ORANGE`); yellow and higher are alerts.
+  ordered (`risk.level >= AlertLevel.ORANGE`); yellow and higher are alerts
+  (`risk.is_alert`).
 - `types`: the `RiskType`s at that level: `HYDRAULIC`, `THUNDERSTORMS`,
   `HYDROGEOLOGICAL`.
 - `description`: the DPC summary, in Italian; `valid_until`: the midnight
@@ -65,10 +109,14 @@ A risk has:
 
 The location keeps its bulletin: it checks for a new one at most once a
 minute and downloads it only when DPC publishes one, so `has_risk()` and
-`risk()` can be called as often as needed (for example at every update of a
-Home Assistant coordinator).
+`risk()` can be called as often as needed.
 
-### Bulletins, day by day
+### 3. The whole day: three risks and the weather
+
+One level per day sums up three assessments: hydraulic (the main rivers),
+thunderstorms and hydrogeological (landslides and the minor streams). The
+second bulletin, the weather vigilance, adds the expected precipitation of the
+next three days and the significant phenomena near the place.
 
 ```python
 import asyncio
@@ -81,20 +129,37 @@ ROME = Location(41.9, 12.5)
 async def main() -> None:
     async with DpcClient() as dpc:
         alerts = await dpc.get_criticality(ROME)
-        weather = await dpc.get_vigilance(ROME, phenomena_within_km=50)
+        weather = await dpc.get_vigilance(ROME, phenomena_within_km=30)
 
     for day in alerts:
-        print(f"{day.date} {day.zone}: {day.level}")  # 2026-11-15 Bacini di Roma: orange
+        print(f"{day.date} {day.zone}: {day.level}")
         for risk in day.risks:
-            print(f"  {risk}")  # hydrogeological: orange
+            print(f"  {risk.type:<16} {risk.level:<7} {risk.description}")
 
     for day in weather:
-        print(f"{day.date} {day.zone}: {day.precipitation}")  # ... Comune di Roma: moderate
+        print(f"{day.date} {day.zone}: {day.precipitation} precipitation")
         for phenomenon in day.phenomena:
-            print(f"  {phenomenon}")  # wind: forti, 30.4 km WSW
+            print(f"  {phenomenon.type}, {phenomenon.distance_km} km {phenomenon.direction}")
 
 
 asyncio.run(main())
+```
+
+```text
+2026-11-15 Bacini di Roma: green
+  hydraulic        green   Assenza di fenomeni significativi prevedibili
+  thunderstorms    green   Assenza di fenomeni significativi prevedibili
+  hydrogeological  green   Assenza di fenomeni significativi prevedibili
+2026-11-16 Bacini di Roma: yellow
+  hydraulic        green   Assenza di fenomeni significativi prevedibili
+  thunderstorms    green   Assenza di fenomeni significativi prevedibili
+  hydrogeological  yellow  Ordinaria
+2026-11-15 Comune di Roma: light precipitation
+  scattered_rain, 25.2 km SW
+2026-11-16 Comune di Roma: light precipitation
+  scattered_rain, 20.2 km WNW
+2026-11-17 Comune di Roma: light precipitation
+  scattered_rain, 27.3 km SE
 ```
 
 A criticality day has the `level` of its zone and the assessment of each risk
@@ -106,10 +171,154 @@ near the location. A phenomenon's `type` (a `PhenomenonType`, such as
 `key`, its code and position, identifies it among those of its day, from one
 bulletin to the next.
 
-Pass your own session with `DpcClient(session)`; the client never closes a
-session it did not create.
+### 4. Many places, one download
 
-#### Days and validity
+Now the whole network of kitchens. Each bulletin is a single file for all of
+Italy (about 18 MB a day for both), so download it once with
+`get_criticality_map()` or `get_vigilance_map()` and read it at each place with
+`at()`, which makes no request. A municipality makes the answer more precise,
+since large cities span several zones, and a place outside Italy has no zone.
+
+```python
+import asyncio
+
+from aiodpc import DpcClient, DpcLocationError, Location
+
+KITCHENS = {
+    "Turin": Location(45.07, 7.69, municipality="Torino"),
+    "Milan": Location(45.46, 9.19, municipality="Milano"),
+    "Bologna": Location(44.49, 11.34, municipality="Bologna"),
+    "Florence": Location(43.77, 11.25, municipality="Firenze"),
+    "Rome": Location(41.9, 12.5, municipality="Roma"),
+    "Naples": Location(40.85, 14.27, municipality="Napoli"),
+    "Palermo": Location(38.12, 13.36, municipality="Palermo"),
+    "Lugano": Location(46.0, 8.95),  # Switzerland: no DPC zone
+}
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        criticality = await dpc.get_criticality_map()  # one download for all
+
+    for city, place in KITCHENS.items():
+        try:
+            tomorrow = criticality.at(place).tomorrow
+        except DpcLocationError:
+            print(f"{city:<9} not covered by DPC")
+            continue
+        notice = "send a notice" if tomorrow.is_alert else "-"
+        print(f"{city:<9} {tomorrow.level:<7} {notice:<14} {tomorrow.zone}")
+
+
+asyncio.run(main())
+```
+
+```text
+Turin     green   -              Pianura Torinese e Colline
+Milan     green   -              Nodo Idraulico di Milano
+Bologna   green   -              Collina bolognese
+Florence  green   -              Arno-Firenze
+Rome      yellow  send a notice  Bacini di Roma
+Naples    yellow  send a notice  Piana campana, Napoli, Isole e Area vesuviana
+Palermo   green   -              Nord-Occidentale e isole Egadi e Ustica
+Lugano    not covered by DPC
+```
+
+`at()` raises `DpcLocationError` for a place outside every zone without
+affecting the others. A map holds the decoded files (tens of MB): keep it only
+while reading it. `at()` does no I/O, so it can also run in an executor.
+
+### 5. The whole country
+
+From a list of places to every zone of Italy, one level down: the DPC files
+themselves, as typed objects with each zone, its municipalities and its shape.
+They need the `schema` extra:
+
+```bash
+pip install "aiodpc[schema]"
+```
+
+```python
+import asyncio
+from collections import Counter
+
+from aiodpc import DpcClient
+from aiodpc.parsers import parse_assessment
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        files = await asyncio.gather(
+            dpc.get_criticality_file(offset=0), dpc.get_criticality_file(offset=1)
+        )
+
+    for day, file in enumerate(files, start=1):
+        levels = Counter(
+            parse_assessment(zone.properties.summary).level for zone in file.features
+        )
+        counts = ", ".join(f"{count} {level}" for level, count in sorted(levels.items()))
+        print(f"day {day}: {len(file.features)} zones, {counts}")
+
+
+asyncio.run(main())
+```
+
+```text
+day 1: 187 zones, 157 green, 30 yellow
+day 2: 187 zones, 151 green, 36 yellow
+```
+
+The shapes of the zones turn these numbers into a map: the
+[tutorial notebook](https://github.com/webysther/aiodpc/blob/main/examples/tutorial.ipynb)
+draws it with matplotlib.
+
+![Alert level of each zone on 15 and 16 November 2026](https://raw.githubusercontent.com/webysther/aiodpc/main/examples/alert-map.png)
+
+### 6. Keeping watch
+
+Back to one place, with everything learned: a script that runs all the time
+and writes the notice to share as soon as DPC announces an alert for tomorrow.
+
+```python
+import asyncio
+
+from aiodpc import Day, DpcClient
+
+CHECK_EVERY_SECONDS = 30 * 60
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        rome = dpc.location(41.9, 12.5, municipality="Roma")
+        announced = None
+        while True:
+            risk = await rome.risk(Day.TOMORROW)
+            if risk.is_alert and risk.day != announced:
+                announced = risk.day
+                print(
+                    f"Notice for {risk.day.date:%A %d %B}: {risk.level} alert "
+                    f"in {risk.day.zone} for {', '.join(risk.types)} risk.\n"
+                    f"DPC: {risk.description}. Follow the official channels."
+                )
+            await asyncio.sleep(CHECK_EVERY_SECONDS)
+
+
+asyncio.run(main())
+```
+
+```text
+Notice for Monday 16 November: yellow alert in Bacini di Roma for hydrogeological risk.
+DPC: Ordinaria per rischio idrogeologico. Follow the official channels.
+```
+
+Asking every 30 minutes costs little: `rome` downloads the bulletin only when
+DPC publishes a new one. The criticality bulletin is published every day by
+16:00 (Europe/Rome) and may be re-issued later the same day
+("Aggiornamento"); the vigilance bulletin by 15:00.
+
+## Reference
+
+### Days and validity
 
 Each day carries its calendar `date` and `valid_until`, the midnight
 (Europe/Rome) that ends it. Look days up by date rather than by position:
@@ -121,10 +330,10 @@ one.
 By default, days that are already over are not downloaded
 (`skip_expired=False` to get them all, e.g. for a past `bulletin_id`).
 
-#### Polling
+### Polling the bulletins
 
-The bulletin files are large (several MB per day). `dpc.location()` polls
-efficiently for you; with the bulletins, check the latest ID and fetch the
+`dpc.location()` polls efficiently for you. With the bulletins of
+`get_criticality()` and `get_vigilance()`, check the latest ID and fetch the
 bulletin only when it changed.
 
 <details>
@@ -156,81 +365,19 @@ asyncio.run(main())
 
 </details>
 
-The criticality bulletin is published every day by 16:00 (Europe/Rome) and may
-be re-issued later the same day ("Aggiornamento"); the vigilance bulletin by
-15:00.
+Pass your own session with `DpcClient(session)`; the client never closes a
+session it did not create.
 
-#### Several places
+### Raw DPC files
 
-Each bulletin is the same file for the whole of Italy (about 18 MB a day for
-both). For several places, download it once with `get_criticality_map()` or
-`get_vigilance_map()` and read it at each place with `at()`, which makes no
-request:
-
-```python
-import asyncio
-
-from aiodpc import DpcClient, Location
-
-PLACES = (Location(41.9, 12.5), Location(45.46, 9.19))  # Rome, Milan
-
-
-async def main() -> None:
-    async with DpcClient() as dpc:
-        criticality = await dpc.get_criticality_map()
-        vigilance = await dpc.get_vigilance_map()
-
-    for place in PLACES:
-        alert = criticality.at(place).today
-        weather = vigilance.at(place, phenomena_within_km=20).today
-        print(f"{alert.zone}: {alert.level}")  # Bacini di Roma: green
-        print(f"{weather.zone}: {weather.precipitation}")  # Comune di Roma: light
-
-
-asyncio.run(main())
-```
-
-`at()` raises `DpcLocationError` for a place outside every zone without
-affecting the others. A map holds the decoded files (tens of MB): keep it only
-while reading it. `at()` does no I/O, so it can also run in an executor.
-
-### Raw DPC files (optional)
-
-```bash
-pip install "aiodpc[schema]"
-```
-
-The DPC files are also available as typed DTOs, with clean names for the
-DPC fields (`zone_name` for `"Nome zona"`).
-
-<details>
-<summary>Example</summary>
-
-```python
-import asyncio
-
-from aiodpc import DpcClient
-
-
-async def main() -> None:
-    async with DpcClient() as dpc:
-        file = await dpc.get_criticality_file()  # latest bulletin, publication day
-
-    for zone in file.features:
-        print(zone.properties.zone_name, zone.properties.summary)
-
-
-asyncio.run(main())
-```
-
-</details>
-
-The DTOs are strict, which is their purpose: when DPC changes its format they
+With `aiodpc[schema]`, the DPC files are available as typed DTOs, with clean
+names for the DPC fields (`zone_name` for `"Nome zona"`), as in step 5. The
+DTOs are strict, which is their purpose: when DPC changes its format they
 raise `DpcParseError` saying where, e.g. ``Object missing required field `Nome
 zona` - at `$.features[1].properties` ``. New fields are ignored. The rest of
 aiodpc does not use them and keeps working when the data is incomplete.
-`get_vigilance_file()` and `get_phenomena_file()` cover the vigilance bulletin;
-`aiodpc.schema` decodes files fetched by other means.
+`get_criticality_file()`, `get_vigilance_file()` and `get_phenomena_file()`
+cover the three files; `aiodpc.schema` decodes files fetched by other means.
 
 ### Municipality
 
@@ -314,6 +461,14 @@ pip install --editable . --group dev   # pip >= 25.1
 ruff format --check . && ruff check .
 mypy
 pytest --cov
+```
+
+To run the tutorial notebook again with today's bulletins (it also writes
+`examples/alert-map.png`, the map of the README):
+
+```bash
+pip install --editable . --group notebook
+jupyter nbconvert --to notebook --execute --inplace examples/tutorial.ipynb
 ```
 
 The tests never reach DPC: a local HTTPS server answers for the DPC hosts.

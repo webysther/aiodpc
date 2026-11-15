@@ -47,6 +47,8 @@ src/aiodpc/
   municipalities.py  other names of municipalities (South Tyrol)
   schema.py          optional strict DTOs of the raw files (extra "schema", msgspec)
 tests/               pytest; tests/server.py is a local HTTPS server standing in for DPC
+examples/            tutorial.ipynb, the README tutorial with maps, saved with its
+                     outputs; it writes alert-map.png, the map of the README
 ```
 
 The public API is what `aiodpc/__init__.py` exports in `__all__`, plus the
@@ -76,6 +78,17 @@ The coverage gate is 95% with branches; keep it at 100%.
   are realistic against those rectangles.
 - Never depend on the current date: pass `now=` or use fixed dates.
   `.today` in a test breaks the day after the fixture's date.
+
+## Documentation
+
+- The README is also the PyPI page: link the repository files with absolute
+  GitHub URLs.
+- Every Python example of the README is a complete script (imports,
+  `async def main()`, `asyncio.run(main())`) that works when copied and
+  pasted. Run each one against the live DPC data before changing it, and
+  show its real output. Secondary examples go in `<details>`.
+- The tutorial grows from one question about one place to the whole country;
+  `examples/tutorial.ipynb` tells the same story with maps. Keep them in step.
 
 ## DPC data
 
