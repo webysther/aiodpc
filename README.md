@@ -71,23 +71,30 @@ Home Assistant coordinator).
 ### Bulletins, day by day
 
 ```python
+import asyncio
+
 from aiodpc import DpcClient, Location
 
 ROME = Location(41.9, 12.5)
 
-async with DpcClient() as dpc:
-    alerts = await dpc.get_criticality(ROME)
-    weather = await dpc.get_vigilance(ROME, phenomena_within_km=50)
 
-for day in alerts:
-    print(f"{day.date} {day.zone}: {day.level}")  # 2026-11-15 Bacini di Roma: orange
-    for risk in day.risks:
-        print(f"  {risk}")  # hydrogeological: orange
+async def main() -> None:
+    async with DpcClient() as dpc:
+        alerts = await dpc.get_criticality(ROME)
+        weather = await dpc.get_vigilance(ROME, phenomena_within_km=50)
 
-for day in weather:
-    print(f"{day.date} {day.zone}: {day.precipitation}")  # ... Comune di Roma: moderate
-    for phenomenon in day.phenomena:
-        print(f"  {phenomenon}")  # wind: forti, 30.4 km WSW
+    for day in alerts:
+        print(f"{day.date} {day.zone}: {day.level}")  # 2026-11-15 Bacini di Roma: orange
+        for risk in day.risks:
+            print(f"  {risk}")  # hydrogeological: orange
+
+    for day in weather:
+        print(f"{day.date} {day.zone}: {day.precipitation}")  # ... Comune di Roma: moderate
+        for phenomenon in day.phenomena:
+            print(f"  {phenomenon}")  # wind: forti, 30.4 km WSW
+
+
+asyncio.run(main())
 ```
 
 A criticality day has the `level` of its zone and the assessment of each risk
@@ -118,15 +125,36 @@ By default, days that are already over are not downloaded
 
 The bulletin files are large (several MB per day). `dpc.location()` polls
 efficiently for you; with the bulletins, check the latest ID and fetch the
-bulletin only when it changed:
+bulletin only when it changed.
+
+<details>
+<summary>Example</summary>
 
 ```python
-from aiodpc import BulletinKind
+import asyncio
 
-latest = await dpc.latest_bulletin_id(BulletinKind.CRITICALITY)
-if latest != alerts.id:
-    alerts = await dpc.get_criticality(ROME, bulletin_id=latest)
+from aiodpc import BulletinKind, DpcClient, Location
+
+ROME = Location(41.9, 12.5)
+CHECK_EVERY_SECONDS = 30 * 60
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        alerts = await dpc.get_criticality(ROME)
+        print(f"Bulletin {alerts.id}")
+        while True:
+            await asyncio.sleep(CHECK_EVERY_SECONDS)
+            latest = await dpc.latest_bulletin_id(BulletinKind.CRITICALITY)
+            if latest != alerts.id:
+                alerts = await dpc.get_criticality(ROME, bulletin_id=latest)
+                print(f"New bulletin {alerts.id}")
+
+
+asyncio.run(main())
 ```
+
+</details>
 
 The criticality bulletin is published every day by 16:00 (Europe/Rome) and may
 be re-issued later the same day ("Aggiornamento"); the vigilance bulletin by
@@ -140,12 +168,26 @@ both). For several places, download it once with `get_criticality_map()` or
 request:
 
 ```python
-criticality = await dpc.get_criticality_map()
-vigilance = await dpc.get_vigilance_map()
+import asyncio
 
-for place in (home, office):
-    print(criticality.at(place).today)
-    print(vigilance.at(place, phenomena_within_km=20).today)
+from aiodpc import DpcClient, Location
+
+PLACES = (Location(41.9, 12.5), Location(45.46, 9.19))  # Rome, Milan
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        criticality = await dpc.get_criticality_map()
+        vigilance = await dpc.get_vigilance_map()
+
+    for place in PLACES:
+        alert = criticality.at(place).today
+        weather = vigilance.at(place, phenomena_within_km=20).today
+        print(f"{alert.zone}: {alert.level}")  # Bacini di Roma: green
+        print(f"{weather.zone}: {weather.precipitation}")  # Comune di Roma: light
+
+
+asyncio.run(main())
 ```
 
 `at()` raises `DpcLocationError` for a place outside every zone without
@@ -159,13 +201,29 @@ pip install "aiodpc[schema]"
 ```
 
 The DPC files are also available as typed DTOs, with clean names for the
-DPC fields (`zone_name` for `"Nome zona"`):
+DPC fields (`zone_name` for `"Nome zona"`).
+
+<details>
+<summary>Example</summary>
 
 ```python
-file = await dpc.get_criticality_file()  # latest bulletin, publication day
-for zone in file.features:
-    print(zone.properties.zone_name, zone.properties.summary)
+import asyncio
+
+from aiodpc import DpcClient
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        file = await dpc.get_criticality_file()  # latest bulletin, publication day
+
+    for zone in file.features:
+        print(zone.properties.zone_name, zone.properties.summary)
+
+
+asyncio.run(main())
 ```
+
+</details>
 
 The DTOs are strict, which is their purpose: when DPC changes its format they
 raise `DpcParseError` saying where, e.g. ``Object missing required field `Nome
