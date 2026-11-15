@@ -138,11 +138,12 @@ def test_rome_date_now() -> None:
 
 
 def test_relative_days() -> None:
-    """Test the dates of today and tomorrow."""
+    """Test the dates of today, tomorrow and the day after."""
     late = rome(2026, 11, 14, 23, 30)
 
     assert Day.TODAY.date(late) == dt.date(2026, 11, 14)
     assert Day.TOMORROW.date(late) == dt.date(2026, 11, 15)
+    assert Day.AFTER_TOMORROW.date(late) == dt.date(2026, 11, 16)
     assert Day.TODAY.date() == rome_date()
 
 
@@ -242,6 +243,27 @@ def test_vigilance_bulletin_lookup() -> None:
     assert [day.precipitation for day in bulletin] == [Precipitation.LIGHT] * 3
 
 
+def test_vigilance_bulletin_relative_days() -> None:
+    """Test today, tomorrow and the day after, relative to the current date."""
+    current = rome_date()
+    days = tuple(
+        vigilance_day(current + dt.timedelta(days=offset), offset)
+        for offset in (-1, 0, 1, 2)
+    )
+    bulletin = VigilanceBulletin(id="20261114", date=dt.date(2026, 11, 14), days=days)
+
+    assert bulletin.today is days[1]
+    assert bulletin.tomorrow is days[2]
+    assert bulletin.after_tomorrow is days[3]
+    assert bulletin.on(Day.AFTER_TOMORROW) is days[3]
+
+    # After midnight, until the next bulletin, the third day is tomorrow
+    shifted = VigilanceBulletin(
+        id="20261114", date=dt.date(2026, 11, 14), days=days[:3]
+    )
+    assert shifted.after_tomorrow is None
+
+
 @pytest.mark.parametrize(
     ("levels", "expected_types", "text"),
     [
@@ -298,6 +320,31 @@ def test_phenomenon_text() -> None:
 
     assert str(known) == "wind: forti, 30.4 km WSW"
     assert str(unknown) == "phenomenon 99, 30.4 km WSW"
+
+
+def test_phenomenon_key() -> None:
+    """Test that the code and position identify a phenomenon, not the distance."""
+    showers = Phenomenon(
+        code=5,
+        category=PhenomenonCategory.PRECIPITATION,
+        description="rovesci o temporali a carattere isolato",
+        latitude=41.57313417,
+        longitude=12.67477485,
+        distance_km=39.1,
+        direction="SSE",
+        degrees=158,
+        bulletin_id=202611141,
+        bulletin_date="2026-11-14Z",
+    )
+    # The same phenomenon in the next bulletin, read at another place
+    elsewhere = dataclasses.replace(
+        showers, distance_km=12.0, direction="N", degrees=2, bulletin_id=202611152
+    )
+
+    assert showers.key == "5@41.57313417,12.67477485"
+    assert elsewhere.key == showers.key
+    assert dataclasses.replace(showers, code=6).key != showers.key
+    assert dataclasses.replace(showers, longitude=12.7).key != showers.key
 
 
 def test_models_are_hashable_and_convertible() -> None:

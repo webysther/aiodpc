@@ -94,7 +94,8 @@ A criticality day has the `level` of its zone and the assessment of each risk
 type: `day.hydraulic`, `day.thunderstorms`, `day.hydrogeological` (all of them
 in `day.risks`). A vigilance day has the expected `precipitation` (a
 `Precipitation`, from `none` to `very_heavy`) and the significant `phenomena`
-near the location.
+near the location. A phenomenon's `key`, its code and position, identifies it
+among those of its day, from one bulletin to the next.
 
 Pass your own session with `DpcClient(session)`; the client never closes a
 session it did not create.
@@ -103,9 +104,10 @@ session it did not create.
 
 Each day carries its calendar `date` and `valid_until`, the midnight
 (Europe/Rome) that ends it. Look days up by date rather than by position:
-`bulletin.today`, `bulletin.tomorrow` or `bulletin.on(date)`. After midnight
-the bulletin published the day before still answers `today` with its second
-day until DPC publishes a new one.
+`bulletin.today`, `bulletin.tomorrow`, `bulletin.after_tomorrow` (vigilance
+only) or `bulletin.on(date)`. After midnight the bulletin published the day
+before still answers `today` with its second day until DPC publishes a new
+one.
 
 By default, days that are already over are not downloaded
 (`skip_expired=False` to get them all, e.g. for a past `bulletin_id`).
