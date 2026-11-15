@@ -10,6 +10,7 @@ import pytest
 from aiodpc import (
     ROME_TZ,
     AlertLevel,
+    CompassPoint,
     CriticalityBulletin,
     CriticalityDay,
     Day,
@@ -313,7 +314,7 @@ def test_phenomenon_text() -> None:
         latitude=41.8,
         longitude=12.1,
         distance_km=30.4,
-        direction="WSW",
+        direction=CompassPoint.WSW,
         degrees=251,
         bulletin_id=None,
         bulletin_date=None,
@@ -344,14 +345,18 @@ def test_phenomenon_key() -> None:
         latitude=41.57313417,
         longitude=12.67477485,
         distance_km=39.1,
-        direction="SSE",
+        direction=CompassPoint.SSE,
         degrees=158,
         bulletin_id=202611141,
         bulletin_date="2026-11-14Z",
     )
     # The same phenomenon in the next bulletin, read at another place
     elsewhere = dataclasses.replace(
-        showers, distance_km=12.0, direction="N", degrees=2, bulletin_id=202611152
+        showers,
+        distance_km=12.0,
+        direction=CompassPoint.N,
+        degrees=2,
+        bulletin_id=202611152,
     )
 
     assert showers.key == "5@41.57313417,12.67477485"

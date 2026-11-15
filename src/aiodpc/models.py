@@ -72,6 +72,64 @@ class Precipitation(_NamedLevel):
     """"Molto elevati"."""
 
 
+def _words(text: str) -> str:
+    """Return a DPC text in lower case, with single spaces between its words."""
+    return " ".join(text.split()).casefold()
+
+
+class Criticality(_NamedLevel):
+    """Criticality of an alert zone, as DPC writes it, ordered by severity.
+
+    DPC states each assessment twice: as a criticality (``"Ordinaria"``) and as
+    an alert (``"ALLERTA GIALLA"``). Every bulletin since 2020 pairs them the
+    same way: absent with green, ordinary with yellow, moderate with orange and
+    high with red. Criticalities print as their name (``"ordinary"``).
+    """
+
+    UNKNOWN = 0
+    """The text is missing or not recognised."""
+    ABSENT = 1
+    """"Assenza di fenomeni significativi prevedibili": no significant
+    phenomena expected."""
+    ORDINARY = 2
+    """"Ordinaria": ordinary criticality, with a yellow alert."""
+    MODERATE = 3
+    """"Moderata": moderate criticality, with an orange alert."""
+    HIGH = 4
+    """"Elevata": high criticality, with a red alert."""
+
+    @classmethod
+    def of(cls, text: str) -> Criticality:
+        """Return the criticality a DPC text starts with; UNKNOWN when none.
+
+        E.g. ordinary for ``"Ordinaria"``, ``"Ordinaria per rischio
+        idrogeologico"`` or ``"ORDINARIA CRITICITA' PER RISCHIO IDRAULICO"``.
+        """
+        words = _words(text)
+        return next(
+            (
+                criticality
+                for prefix, criticality in CRITICALITY_TEXTS.items()
+                if words == prefix or words.startswith(f"{prefix} ")
+            ),
+            cls.UNKNOWN,
+        )
+
+
+CRITICALITY_TEXTS: Final[Mapping[str, Criticality]] = {
+    "assenza di fenomeni significativi prevedibili": Criticality.ABSENT,
+    "ordinaria": Criticality.ORDINARY,
+    "moderata": Criticality.MODERATE,
+    "elevata": Criticality.HIGH,
+}
+"""How each criticality starts in the DPC texts, in lower case.
+
+Measured: the summaries of the 2572 bulletins published from 2020 to November
+2026, and every zone of 73 of them chosen for their red and orange alerts and
+for their days with several risks, use only these four.
+"""
+
+
 class RiskType(StrEnum):
     """Risk assessed by the criticality bulletin."""
 
@@ -81,6 +139,51 @@ class RiskType(StrEnum):
     """Rischio temporali: effects of thunderstorms on the ground."""
     HYDROGEOLOGICAL = "hydrogeological"
     """Rischio idrogeologico: landslides and flooding of the minor streams."""
+
+    @classmethod
+    def named_in(cls, text: str) -> RiskType | None:
+        """Return the risk a DPC text names after "per rischio", if any.
+
+        E.g. thunderstorms for ``"Ordinaria per rischio temporali"``; None for
+        ``"Ordinaria"`` or a risk unknown to aiodpc.
+        """
+        _before, found, after = _words(text).partition(RISK_NAME_PREFIX)
+        names = after.split()
+        if not found or not names:
+            return None
+        return RISK_TYPE_NAMES.get(names[0])
+
+
+RISK_NAME_PREFIX: Final = "per rischio "
+"""What precedes the name of a risk in the DPC texts, in lower case."""
+
+RISK_TYPE_NAMES: Final[Mapping[str, RiskType]] = {
+    "idraulico": RiskType.HYDRAULIC,
+    "temporali": RiskType.THUNDERSTORMS,
+    "idrogeologico": RiskType.HYDROGEOLOGICAL,
+}
+"""The Italian name of each risk in the DPC texts (``"per rischio temporali"``)."""
+
+
+class CompassPoint(StrEnum):
+    """A point of the 16-point compass rose, as its English abbreviation."""
+
+    N = "N"
+    NNE = "NNE"
+    NE = "NE"
+    ENE = "ENE"
+    E = "E"
+    ESE = "ESE"
+    SE = "SE"
+    SSE = "SSE"
+    S = "S"
+    SSW = "SSW"
+    SW = "SW"
+    WSW = "WSW"
+    W = "W"
+    WNW = "WNW"
+    NW = "NW"
+    NNW = "NNW"
 
 
 class PhenomenonCategory(StrEnum):
@@ -301,6 +404,11 @@ class RiskAssessment:
         """Return whether the level is an alert: yellow or higher."""
         return self.level.is_alert
 
+    @property
+    def criticality(self) -> Criticality:
+        """Return the criticality of the description (ordinary for "Ordinaria")."""
+        return Criticality.of(self.description)
+
     def __str__(self) -> str:
         """Return e.g. ``"hydrogeological: yellow"``."""
         return f"{self.type}: {self.level}"
@@ -335,6 +443,20 @@ class CriticalityDay:
         return self.level.is_alert
 
     @property
+    def criticality(self) -> Criticality:
+        """Return the criticality of the summary (ordinary for "Ordinaria...")."""
+        return Criticality.of(self.description)
+
+    @property
+    def mapped_risk(self) -> RiskType | None:
+        """Return the risk the summary names, the one the DPC map shows.
+
+        DPC names one risk even when others have the same level (see
+        :attr:`Risk.types` for all of them); None for a green zone.
+        """
+        return RiskType.named_in(self.description)
+
+    @property
     def risks(self) -> tuple[RiskAssessment, ...]:
         """Return the assessment of every risk type."""
         return self.hydraulic, self.thunderstorms, self.hydrogeological
@@ -358,7 +480,7 @@ class Phenomenon:
     longitude: float
     distance_km: float
     """Distance from the location, in km, rounded to 0.1 km."""
-    direction: str
+    direction: CompassPoint
     """Compass point from the location to the phenomenon (e.g. ``"NNE"``)."""
     degrees: int
     """Initial bearing from the location to the phenomenon (0-359)."""
@@ -519,6 +641,16 @@ class Risk:
     def is_alert(self) -> bool:
         """Return whether there is an alert: yellow or higher."""
         return self.level.is_alert
+
+    @property
+    def criticality(self) -> Criticality:
+        """Return the criticality of the description (ordinary for "Ordinaria...")."""
+        return Criticality.of(self.description)
+
+    @property
+    def mapped_risk(self) -> RiskType | None:
+        """Return the risk the description names, the one the DPC map shows."""
+        return RiskType.named_in(self.description)
 
     def __str__(self) -> str:
         """Return e.g. ``"orange (hydrogeological)"`` or ``"green"``."""

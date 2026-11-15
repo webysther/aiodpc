@@ -22,11 +22,14 @@ from .exceptions import (
     DpcNoDataError,
     DpcParseError,
 )
+from .i18n import Language, Translation, Translator
 from .maps import CriticalityMap, VigilanceMap
 from .models import (
     AlertLevel,
     AlertZone,
     BulletinKind,
+    CompassPoint,
+    Criticality,
     CriticalityBulletin,
     CriticalityDay,
     Day,
@@ -57,6 +60,8 @@ __all__ = [
     "AlertZone",
     "BulletinIdSource",
     "BulletinKind",
+    "CompassPoint",
+    "Criticality",
     "CriticalityBulletin",
     "CriticalityDay",
     "CriticalityMap",
@@ -67,6 +72,7 @@ __all__ = [
     "DpcLocationError",
     "DpcNoDataError",
     "DpcParseError",
+    "Language",
     "Location",
     "MapPageIdSource",
     "MonitoredLocation",
@@ -78,6 +84,8 @@ __all__ = [
     "RiskAssessment",
     "RiskType",
     "TextFetcher",
+    "Translation",
+    "Translator",
     "VigilanceBulletin",
     "VigilanceDay",
     "VigilanceMap",

@@ -8,27 +8,13 @@ from typing import TYPE_CHECKING, Any, Final
 
 from geojson_utils import point_distance, point_in_polygon
 
+from .models import CompassPoint
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
-COMPASS_POINTS: Final = (
-    "N",
-    "NNE",
-    "NE",
-    "ENE",
-    "E",
-    "ESE",
-    "SE",
-    "SSE",
-    "S",
-    "SSW",
-    "SW",
-    "WSW",
-    "W",
-    "WNW",
-    "NW",
-    "NNW",
-)
+COMPASS_POINTS: Final = tuple(CompassPoint)
+"""The 16 compass points clockwise from north."""
 
 EARTH_RADIUS_KM: Final = 6371.0088
 """Mean radius of the Earth."""
@@ -115,7 +101,7 @@ def distance_km(point_a: tuple[float, float], point_b: tuple[float, float]) -> f
 
 def calculate_initial_compass_bearing(
     point_a: tuple[float, float], point_b: tuple[float, float]
-) -> tuple[str, int]:
+) -> tuple[CompassPoint, int]:
     """Return the compass point and degrees from point_a to point_b (lat, lon).
 
     Credits: https://gist.github.com/jeromer/2005586

@@ -316,6 +316,51 @@ DPC publishes a new one. The criticality bulletin is published every day by
 16:00 (Europe/Rome) and may be re-issued later the same day
 ("Aggiornamento"); the vigilance bulletin by 15:00.
 
+### 7. Every language
+
+DPC writes in Italian, but the kitchens' volunteers and guests speak many
+languages. Every value of the bulletins has a text in English, Italian,
+Brazilian Portuguese, French, German and Spanish, so the same notice can be
+written in each of them, the DPC description included.
+
+```python
+import asyncio
+
+from aiodpc import Day, DpcClient, Language, Translator
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        rome = dpc.location(41.9, 12.5, municipality="Roma")
+        risk = await rome.risk(Day.TOMORROW)
+
+    for language in Language:
+        tell = Translator(language)
+        print(f"{language:<6} {tell(Day.TOMORROW)}: {tell.risk(risk)}.")
+        print(f"       DPC: {tell.description(risk)}.")
+
+
+asyncio.run(main())
+```
+
+```text
+en     Tomorrow: Yellow alert for hydrogeological risk.
+       DPC: Ordinary criticality for hydrogeological risk.
+it     Domani: Allerta gialla per rischio idrogeologico.
+       DPC: Ordinaria per rischio idrogeologico.
+pt-BR  Amanhã: Alerta amarelo para risco hidrogeológico.
+       DPC: Criticidade ordinária para risco hidrogeológico.
+fr     Demain: Alerte jaune pour risque hydrogéologique.
+       DPC: Criticité ordinaire pour risque hydrogéologique.
+de     Morgen: Gelbe Warnung für hydrogeologisches Risiko.
+       DPC: Geringes Gefährdungspotenzial für hydrogeologisches Risiko.
+es     Mañana: Alerta amarilla por riesgo hidrogeológico.
+       DPC: Criticidad ordinaria por riesgo hidrogeológico.
+```
+
+`Translator("pt-BR")` also takes tags such as `"pt_BR"` or `"it-IT"`. See
+[Translations](#translations) for what it covers.
+
 ## Reference
 
 ### Days and validity
@@ -419,12 +464,39 @@ All errors derive from `DpcError`:
 
 Invalid arguments (coordinates, bulletin IDs) raise `ValueError`.
 
-### Translations and codes
+### Translations
 
-`AlertLevel`, `Precipitation`, `RiskType` and `PhenomenonCategory` print as
-English codes (`orange`, `very_heavy`, `hydrogeological`, `wave_motion`),
-ready to be used as translation keys; `Phenomenon.code` is the DPC
-`id_fenomeno`. The texts written by DPC are kept in Italian (`description`).
+Every value of the models is an enum: `AlertLevel`, `Criticality`,
+`RiskType`, `Precipitation`, `PhenomenonCategory`, `PhenomenonType`,
+`CompassPoint`, `Day` and `BulletinKind`. They print as English codes
+(`orange`, `ordinary`, `hydrogeological`, `very_heavy`, `light_snow`, `WNW`),
+ready to be used as translation keys. The texts DPC writes are kept in
+Italian (`description`), and read into enums: `criticality` (`"Ordinaria"` is
+`Criticality.ORDINARY`) and `mapped_risk`, the one risk the summary of a zone
+names, the one the DPC map shows.
+
+`aiodpc.i18n` has a text for every value in English, Italian, Brazilian
+Portuguese, French, German and Spanish; the tests check that none is missing.
+A `Translator` tells them in one language:
+
+- `tell(value)`: the label of any value, e.g. `tell(AlertLevel.YELLOW)` is
+  "Alerta amarelo" in Brazilian Portuguese.
+- `tell.risk(risk)`: the alert and its risk types, "Alerta amarelo para risco
+  hidrogeológico".
+- `tell.description(risk)`, also of a `CriticalityDay` or `RiskAssessment`:
+  the DPC text, "Criticidade ordinária para risco hidrogeológico". In
+  Italian it is the text DPC wrote; a text aiodpc does not recognise is
+  returned as DPC wrote it rather than lost.
+- `tell.phenomenon(phenomenon)`: "Chuvas esparsas ou intermitentes, 20,2 km
+  ONO", with the decimal separator and compass points of the language.
+
+The names of the zones and municipalities are proper names and are not
+translated. `Language.of(tag)` returns the language of a tag, or `None` when
+aiodpc does not speak it; `aiodpc.i18n.TRANSLATIONS` holds every text.
+
+The [data dictionary](https://github.com/webysther/aiodpc/blob/main/docs/data-dictionary.xlsx)
+lists every field of the DPC files and every value they take, with a numeric
+code, the text DPC writes and its translations, as a proposal of data model.
 
 ### Low-level API
 
@@ -461,6 +533,13 @@ pip install --editable . --group dev   # pip >= 25.1
 ruff format --check . && ruff check .
 mypy
 pytest --cov
+```
+
+To write the data dictionary again from the tables of aiodpc:
+
+```bash
+pip install --editable . --group docs
+python docs/data_dictionary.py
 ```
 
 To run the tutorial notebook again with today's bulletins (it also writes

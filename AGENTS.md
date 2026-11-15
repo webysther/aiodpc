@@ -46,14 +46,19 @@ src/aiodpc/
   urls.py, geo.py, const.py
   municipalities.py  other names of municipalities (South Tyrol)
   schema.py          optional strict DTOs of the raw files (extra "schema", msgspec)
+  i18n/              a text for every value of the models in each Language:
+                     translation.py (Language, Translation), one module per
+                     language, Translator in __init__.py
 tests/               pytest; tests/server.py is a local HTTPS server standing in for DPC
 examples/            tutorial.ipynb, the README tutorial with maps, saved with its
                      outputs; it writes alert-map.png, the map of the README
+docs/                data_dictionary.py writes data-dictionary.xlsx, the DPC data
+                     model with numeric codes, from the tables of aiodpc
 ```
 
 The public API is what `aiodpc/__init__.py` exports in `__all__`, plus the
 documented modules: `parsers`, `urls`, `geo`, `municipalities`, `discovery`,
-`schema`.
+`schema`, `i18n`.
 
 ## Checks
 
@@ -89,6 +94,22 @@ The coverage gate is 95% with branches; keep it at 100%.
   show its real output. Secondary examples go in `<details>`.
 - The tutorial grows from one question about one place to the whole country;
   `examples/tutorial.ipynb` tells the same story with maps. Keep them in step.
+
+## Translations
+
+- Every value of the models is an enum, and every enum has a text in every
+  `Language`: `tests/test_i18n.py` fails on a missing one. A new enum or member
+  needs its text in the six languages, and its table in `Translation`.
+- The Italian texts are those DPC writes (its legends, `"Ordinaria"`,
+  `"Deboli"`); the other languages follow the translations of DPC Alert, so
+  that the library and the integration say the same.
+- Risk types are written as within a sentence ("hydrogeological risk");
+  every other text as a label. The templates hold the grammar of a language.
+- A DPC text aiodpc does not recognise is returned as it is, never dropped.
+- To add a language: a member of `Language`, a module in `i18n/`, its entry in
+  `TRANSLATIONS`; the tests list what is missing.
+- After changing a table, write the data dictionary again
+  (`python docs/data_dictionary.py`).
 
 ## DPC data
 

@@ -5,6 +5,39 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.7.0] - Unreleased
+
+### Added
+
+- `aiodpc.i18n`: a text for every value of the models in English, Italian,
+  Brazilian Portuguese, French, German and Spanish, checked by the tests so
+  that none is missing. `Translator("pt-BR")` tells any value as a label
+  (`tell(AlertLevel.YELLOW)`, "Alerta amarelo"), a risk with its risk types
+  (`tell.risk(risk)`), the DPC description of a risk, day or assessment
+  (`tell.description(risk)`, "Criticidade ordinária para risco
+  hidrogeológico") and a phenomenon with its distance and direction
+  (`tell.phenomenon(phenomenon)`). In Italian the texts are those DPC writes;
+  a DPC text aiodpc does not recognise is returned as it is.
+- `Criticality` and the `criticality` of `RiskAssessment`, `CriticalityDay`
+  and `Risk`: the DPC description read into an enum (`"Ordinaria"` is
+  `Criticality.ORDINARY`). Every DPC text since 2020 is one of four
+  criticalities, each always with the same alert level.
+- `mapped_risk` of `CriticalityDay` and `Risk`: the one risk the DPC summary
+  of a zone names, the one its map shows, even when other risks have the same
+  level (`Risk.types` has all of them).
+- `CompassPoint`: the 16 compass points, translated like the other values.
+- `Language.of(tag)`: the language of a tag such as `"pt_BR"` or `"it-IT"`.
+- A tutorial in the README and in `examples/tutorial.ipynb`, from one question
+  about one place to the map of Italy and the same notice in six languages.
+- `docs/data-dictionary.xlsx`: every field of the DPC files and every value
+  they take, with a numeric code, the text DPC writes and its translations.
+
+### Changed
+
+- `Phenomenon.direction` is a `CompassPoint` instead of a `str`. It is still
+  equal to its abbreviation (`direction == "WNW"`); type checkers ask for
+  `CompassPoint.WNW` where code builds a `Phenomenon`.
+
 ## [0.6.0] - 2026-11-15
 
 ### Added
@@ -181,6 +214,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.7.0]: https://github.com/webysther/aiodpc/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/webysther/aiodpc/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/webysther/aiodpc/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/webysther/aiodpc/compare/v0.4.0...v0.4.1
