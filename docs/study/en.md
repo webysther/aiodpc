@@ -23,9 +23,10 @@ are published as open data, under CC BY 4.0, in GeoJSON and other formats.
 - One day of both bulletins is **19.3 MB** of GeoJSON. The alerts themselves
   are a few kilobytes of it: **96%** of a criticality file is the shape of the
   zones, which is the same every day.
-- The same information as numeric codes is **13.4 kB**, **1,438 times
-  smaller** (3.8 kB compressed, 2,012 times smaller than the compressed
-  GeoJSON). The shapes and the municipalities go in a reference published only
+- The same information as numeric codes is **15.3 kB** of JSON, **1,259
+  times smaller** (4.0 kB compressed, 1,894 times smaller than the compressed
+  GeoJSON). The 189 bulletins of July to September 2026 take 1.1 MB as JSON
+  Lines, against 1.83 GB of GeoJSON. The shapes and the municipalities go in a reference published only
   when they change: the shapes changed in 8 of the 2,571 bulletins measured
   since 2020, and the reference would have had 15 versions.
 - Every value of the bulletins belongs to a small closed set. Over 2,572
@@ -41,8 +42,8 @@ are published as open data, under CC BY 4.0, in GeoJSON and other formats.
 
 The proposal: keep the current files, and publish next to them a versioned
 reference of the zones (with stable codes and the ISTAT codes of the
-municipalities) and three small daily files of numeric codes, following the
-[data dictionary](../data-dictionary.xlsx).
+municipalities) and, for each bulletin, a small JSON document of numeric
+codes, following the [data dictionary](../data-dictionary.xlsx).
 
 ## 1. Research design
 
@@ -59,9 +60,9 @@ contribution is an improvement of a known problem with a new solution
 |---|---|
 | Problem identification and motivation | Sections 2 to 6: size, redundancy, Italian-only texts, defects |
 | Objectives of a solution | Section 7: smaller, in no language, with stable identifiers, without breaking the current files |
-| Design and development | The data dictionary, the daily files of codes, the reference of the zones, their implementation in aiodpc |
-| Demonstration | Section 9: the proof of concept on a fixed bulletin |
-| Evaluation | Section 8, measured; and the tests of aiodpc (501 tests, full coverage; the Italian labels give back every DPC text) |
+| Design and development | The data dictionary, the daily documents of codes, the reference of the zones, their implementation in aiodpc |
+| Demonstration | Section 9: the proof of concept on a fixed bulletin, and a quarter of bulletins as JSON Lines |
+| Evaluation | Section 8, measured; and the tests of aiodpc (707 tests, full coverage; the Italian labels give back every DPC text) |
 | Communication | This study, in English and Italian, with its code and data |
 
 ### 1.2 Data quality model
@@ -240,7 +241,7 @@ use only these texts:
 
 A text that is always one of a few values is a code written in words, and in
 one language. As numbers, each value is a code; a list of codes gives its
-label in Italian, and in any language. aiodpc does it in six languages today.
+label in Italian, and in any language. aiodpc does it in 13 languages today.
 
 ## 6. Defects, by data quality characteristic
 
@@ -272,20 +273,24 @@ them:
    shape and the ISTAT codes of its municipalities (ISTAT publishes them with
    their history), each once. A new version only when the zones change, with
    the date it applies from; the previous versions stay.
-2. **Three small daily files of codes**, which name the version of the zones
-   they use:
+2. **A small JSON document of codes for each bulletin**, which names the
+   version of the zones it uses, with a row of codes per zone and day:
    - criticality: day, zone code, alert level of the zone, risk shown on the
      map, alert level of each of the three risks;
-   - vigilance: day, zone code, precipitation class;
-   - phenomena: day, phenomenon code, latitude, longitude.
+   - vigilance: day, zone code, precipitation class; and the phenomena: day,
+     phenomenon code, latitude, longitude.
 3. **The lists of codes**, with their labels in Italian: the
    [data dictionary](../data-dictionary.xlsx) proposes one, which keeps the
    codes DPC already publishes (`id_classificazione`, `id_fenomeno`).
 
 These follow the W3C Data on the Web Best Practices (Lóscio et al., 2017):
 persistent identifiers, versioned data, standard vocabularies, metadata that
-describe the structure. The daily files can be CSV described by CSV on the
-Web metadata (Tennison & Kellogg, 2015). Stable identifiers and shared code
+describe the structure. The documents are JSON (Bray, 2017), the format DPC
+already publishes, and their structure can be described by a JSON Schema
+(Pezoa et al., 2016). Each document fits on one line, so the documents of a
+period, one per line, make a JSON Lines file: the history of the bulletins
+in a single file that grows by one line per bulletin. Stable identifiers and
+shared code
 lists also make the data interoperable and reusable in the sense of the FAIR
 principles (Wilkinson et al., 2016).
 
@@ -302,10 +307,11 @@ measured it follows from the alert level. It can be kept for clarity.
 
 | | GeoJSON today | Codes | Ratio |
 |---|---|---|---|
-| One day | 19.3 MB | 13.4 kB | 1,438× |
-| One day, compressed (gzip) | 7.6 MB | 3.8 kB | 2,012× |
-| One year (365 days) | 7.0 GB | 4.9 MB | |
-| Reading one day (JSON or CSV, in Python) | about 0.4 s | 0.3 ms | over 1,000× |
+| One day | 19.3 MB | 15.3 kB | 1,259× |
+| One day, compressed (gzip) | 7.6 MB | 4.0 kB | 1,894× |
+| One quarter (2026-Q3, 189 bulletins) | 1.83 GB | 1.1 MB | 1,639× |
+| One year (365 days) | 7.0 GB | 5.6 MB | |
+| Reading one day (JSON, in Python) | about 0.4 s | 0.3 ms | over 1,000× |
 
 The reference of the zones weighs 5.3 MB (alert zones) and 2.6 MB
 (vigilance zones) as GeoJSON, and 124 kB and 155 kB as tables of names and
@@ -319,7 +325,7 @@ Beyond the bytes:
 - **Fewer errors.** Applications compare numbers instead of parsing Italian
   sentences, whose wording (case, apostrophes, "criticità" or not) varies
   between the files and the summaries.
-- **History.** A year of both bulletins fits in about 5 MB: the history of the
+- **History.** A year of both bulletins fits in about 6 MB: the history of the
   alerts of a zone, or of the whole country, becomes simple to study.
 - **Small devices.** A sensor, a phone on a weak connection, or a home
   automation system can follow the alerts without downloading megabytes a
@@ -333,6 +339,7 @@ in its data dictionary.
 
 ```python
 import asyncio
+import json
 
 from aiodpc import DpcClient
 
@@ -345,30 +352,43 @@ async def main() -> None:
         vigilance = await dpc.get_vigilance_map(
             bulletin_id="20261115", skip_expired=False
         )
-    compact = criticality.compact()
-    weather = vigilance.compact()
 
-    for text in (compact.to_csv(), weather.phenomena_csv(), compact.zones.to_csv()):
-        for line in text.splitlines()[:3]:
-            print(line[:78])
-    print("zone set", compact.zones.fingerprint)
+    # One JSON document per bulletin, on one line: a line of JSON Lines
+    for bulletin in (criticality.compact(), vigilance.compact()):
+        line = bulletin.to_json()
+        document = json.loads(line)
+        size = f"{len(line.encode()):,} bytes"
+        print(document["bulletin"], "zone set", document["zone_set"], size)
+        print(" ", document["columns"])
+        print(" ", document["rows"][:3])
+    print(" ", document["phenomena"]["columns"])
+    print(" ", document["phenomena"]["rows"][:2])
 
 
 asyncio.run(main())
 ```
 
 ```text
-day,zone,level,criticality,mapped_risk,hydraulic,thunderstorms,hydrogeological
-0,28,1,1,0,1,1,1
-0,39,1,1,0,1,1,1
-day,code,latitude,longitude
-0,5,45.82818,7.08536
-0,5,44.98053,6.76341
-code,name,municipalities
-1,Alpago Cansiglio - Bacino Piave,Alpago|Chies d'Alpago|Tambre
-2,Alta Irpinia e Sannio,Altavilla Irpina|Andretta|Apice|Apollosa|Aquilonia|Ari
-zone set 68bcac32826e
+20261115_1421 zone set 68bcac32826e 7,454 bytes
+  ['day', 'zone', 'level', 'criticality', 'mapped_risk', 'hydraulic', 'thunderstorms', 'hydrogeological']
+  [[0, 28, 1, 1, 0, 1, 1, 1], [0, 39, 1, 1, 0, 1, 1, 1], [0, 37, 1, 1, 0, 1, 1, 1]]
+20261115 zone set d124f4a6cd97 7,874 bytes
+  ['day', 'zone', 'precipitation']
+  [[0, 43, 1], [0, 27, 1], [0, 45, 1]]
+  ['day', 'code', 'latitude', 'longitude']
+  [[0, 5, 45.82818, 7.08536], [0, 5, 44.98053, 6.76341]]
 ```
+
+The zone table of each zone set (`zones.to_json()`) gives the name and the
+municipalities of each zone code, and `zones.to_geojson()` its shape.
+
+The repository of aiodpc holds a whole quarter in this form
+([`data/2026-Q3`](../../data/2026-Q3)): the 97 criticality and 92 vigilance
+bulletins of July to September 2026, one per line in two JSON Lines files,
+take 1.1 MB (101 kB compressed), against 1.83 GB in the 746 DPC files of the
+same bulletins, 1,639 times less. All the bulletins of the quarter use one
+zone set of each kind; their two references add 8.2 MB, once. Its
+[README](../../data/README.md) reads it with pandas and DuckDB.
 
 Since DPC publishes no zone codes, aiodpc numbers the zones by their names in
 alphabetical order, and marks the set of zones with a fingerprint: the codes
@@ -389,7 +409,7 @@ Following Wohlin et al. (2012) and Runeson and Höst (2009):
   change that the next bulletin undoes counts as a defect, not as a version
   of the zones.
 - **Internal validity.** The measures come from a script, which could be
-  wrong. The parsing is tested (501 tests, full coverage), each number of the
+  wrong. The parsing is tested (707 tests, full coverage), each number of the
   text is checked against `results.json`, and the measuring changed findings
   of first drafts. An apparent change of order of the municipality lists was
   in fact the repeated names of section 6. The census of the zones then
@@ -447,6 +467,8 @@ This study is not affiliated with DPC. Corrections are welcome as
   il riutilizzo dell'informazione del settore pubblico* (v. 1.0, Determinazione
   n. 183/2023). Agenzia per l'Italia Digitale.
   https://www.agid.gov.it/sites/default/files/repository_files/lg-open-data_v.1.0_1.pdf
+- Bray, T. (Ed.). (2017). *The JavaScript Object Notation (JSON) data
+  interchange format* (RFC 8259). IETF. https://doi.org/10.17487/RFC8259
 - Butler, H., Daly, M., Doyle, A., Gillies, S., Hagen, S., & Schaub, T. (2016).
   *The GeoJSON format* (RFC 7946). IETF. https://doi.org/10.17487/RFC7946
 - Denzin, N. K. (1978). *The research act: A theoretical introduction to
@@ -473,15 +495,16 @@ This study is not affiliated with DPC. Corrections are welcome as
   https://doi.org/10.2753/MIS0742-1222240302
 - Peng, R. D. (2011). Reproducible research in computational science.
   *Science, 334*(6060), 1226–1227. https://doi.org/10.1126/science.1213847
+- Pezoa, F., Reutter, J. L., Suarez, F., Ugarte, M., & Vrgoč, D. (2016).
+  Foundations of JSON Schema. In *Proceedings of the 25th International
+  Conference on World Wide Web* (pp. 263–273).
+  https://doi.org/10.1145/2872427.2883029
 - Runeson, P., & Höst, M. (2009). Guidelines for conducting and reporting case
   study research in software engineering. *Empirical Software Engineering,
   14*(2), 131–164. https://doi.org/10.1007/s10664-008-9102-8
 - Sandve, G. K., Nekrutenko, A., Taylor, J., & Hovig, E. (2013). Ten simple
   rules for reproducible computational research. *PLoS Computational Biology,
   9*(10), e1003285. https://doi.org/10.1371/journal.pcbi.1003285
-- Tennison, J., & Kellogg, G. (Eds.). (2015). *Model for tabular data and
-  metadata on the Web* (W3C Recommendation).
-  https://www.w3.org/TR/tabular-data-model/
 - Vetrò, A., Canova, L., Torchiano, M., Orozco Minotas, C., Iemma, R., &
   Morando, F. (2016). Open data quality measurement framework: Definition and
   application to Open Government Data. *Government Information Quarterly,

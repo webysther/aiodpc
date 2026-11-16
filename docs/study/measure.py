@@ -7,21 +7,22 @@ Downloads into CACHE_DIR, and keeps between runs (about 450 MB): the summary
 of every criticality bulletin published up to :data:`UNTIL`, a seeded sample
 of their GeoJSON files, and the files of one day of both bulletins. The census
 reads the GeoJSON file of the day of every bulletin (about 14 GB) as it
-arrives and keeps only the digests of its zones (``census.jsonl``). Writes
-``results.json`` and the figures next to this script. The bulletins are fixed,
-so a later run gives the same numbers, except the sizes of the repositories.
+arrives and keeps only the digests of its zones (``census.jsonl``). The
+quarter in ``data`` (written by ``data/build.py``) is compared with the sizes
+of the DPC files of its bulletins, asked of GitHub without downloading them.
+Writes ``results.json`` and the figures next to this script. The bulletins are
+fixed, so a later run gives the same numbers, except the sizes of the
+repositories.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import csv
 import datetime as dt
 import gzip
 import hashlib
 import html
-import io
 import json
 import random
 import re
@@ -55,6 +56,10 @@ DAY_CRITICALITY: Final = "20261115_1421"
 """The criticality bulletin of the day measured in full."""
 DAY_VIGILANCE: Final = "20261115"
 """The vigilance bulletin of the day measured in full."""
+
+QUARTER: Final = "2026-Q3"
+"""The quarter of bulletins written in ``data`` by ``data/build.py``."""
+DATA: Final = HERE.parent.parent / "data"
 
 SAMPLE_PER_GROUP: Final = 25
 """GeoJSON files drawn from each group: red, orange and several-risk days."""
@@ -156,6 +161,62 @@ async def bulletin_ids(session: aiohttp.ClientSession) -> list[str]:
         for name in names
         if re.fullmatch(r"\d{8}_\d{4}\.json", name) and name[:8] <= UNTIL
     )
+
+
+async def quarter(session: aiohttp.ClientSession) -> dict[str, Any]:
+    """Measure the quarter in ``data`` against the DPC files of its bulletins.
+
+    The sizes of the DPC files are those GitHub gives without compression.
+    """
+    folder = DATA / QUARTER
+    lines = {
+        kind: (folder / f"{kind}.jsonl").read_bytes()
+        for kind in ("criticality", "vigilance")
+    }
+    ids = {
+        kind: [json.loads(line)["bulletin"] for line in data.splitlines()]
+        for kind, data in lines.items()
+    }
+    paths = [
+        (CRITICALITY_REPO, f"geojson/{bulletin_id}_{day}.json")
+        for bulletin_id in ids["criticality"]
+        for day in ("today", "tomorrow")
+    ] + [
+        (VIGILANCE_REPO, f"geojson/{bulletin_id}_{prefix}{day}.json")
+        for bulletin_id in ids["vigilance"]
+        for day in ("oggi", "domani", "dopodomani")
+        for prefix in ("", "fenomeni_")
+    ]
+    limit = asyncio.Semaphore(DOWNLOADS)
+
+    async def size(repo: str, path: str) -> int:
+        async with (
+            limit,
+            session.head(
+                RAW.format(repo=repo, path=path),
+                headers={"Accept-Encoding": "identity"},
+            ) as response,
+        ):
+            response.raise_for_status()
+            return int(response.headers["Content-Length"])
+
+    sizes = await asyncio.gather(*(size(repo, path) for repo, path in paths))
+    compact = b"".join(lines.values())
+    return {
+        "quarter": QUARTER,
+        "bulletins": {kind: len(bulletin_ids) for kind, bulletin_ids in ids.items()},
+        "first": {kind: bulletin_ids[0] for kind, bulletin_ids in ids.items()},
+        "last": {kind: bulletin_ids[-1] for kind, bulletin_ids in ids.items()},
+        "dpc_files": len(paths),
+        "dpc_bytes": sum(sizes),
+        "jsonl_bytes": {kind: len(data) for kind, data in lines.items()},
+        "compact_bytes": len(compact),
+        "compact_gzip": len(gzip.compress(compact)),
+        "zones_bytes": sum(
+            path.stat().st_size for path in (folder / "zones").iterdir()
+        ),
+        "ratio": sum(sizes) / len(compact),
+    }
 
 
 def headings(summary: dict[str, Any], day: str) -> list[str]:
@@ -724,11 +785,10 @@ def one_day(day: dict[str, bytes]) -> dict[str, Any]:
     ).compact()
     compact_vigilance = VigilanceMap(DAY_VIGILANCE, vigilance).compact()
     documents = {
-        "criticality.csv": compact_criticality.to_csv(),
-        "vigilance.csv": compact_vigilance.to_csv(),
-        "phenomena.csv": compact_vigilance.phenomena_csv(),
+        "criticality.json": compact_criticality.to_json(),
+        "vigilance.json": compact_vigilance.to_json(),
     }
-    compact = "".join(documents.values()).encode()
+    compact = "".join(f"{document}\n" for document in documents.values()).encode()
     references = {
         "criticality_zones.json": compact_criticality.zones.to_json(),
         "vigilance_zones.json": compact_vigilance.zones.to_json(),
@@ -759,7 +819,7 @@ def one_day(day: dict[str, bytes]) -> dict[str, Any]:
             lambda: [json.loads(data) for data in day.values()]
         ),
         "decode_compact_seconds": fastest(
-            lambda: [list(csv.reader(io.StringIO(text))) for text in documents.values()]
+            lambda: [json.loads(text) for text in documents.values()]
         ),
         "year_dpc_bytes": dpc_bytes * DAYS_PER_YEAR,
         "year_compact_bytes": len(compact) * DAYS_PER_YEAR,
@@ -771,8 +831,8 @@ FIGURE_TEXTS: Final[dict[str, dict[str, str]]] = {
         "sizes": "Bytes of one day of both bulletins (log scale)",
         "dpc": "DPC GeoJSON",
         "dpc_gzip": "DPC GeoJSON, gzip",
-        "compact": "Compact CSV",
-        "compact_gzip": "Compact CSV, gzip",
+        "compact": "Compact JSON",
+        "compact_gzip": "Compact JSON, gzip",
         "composition": "What a criticality file is made of (share of its bytes)",
         "geometry": "Zone shapes",
         "municipalities": "Municipality lists",
@@ -786,8 +846,8 @@ FIGURE_TEXTS: Final[dict[str, dict[str, str]]] = {
         "sizes": "Byte di un giorno dei due bollettini (scala logaritmica)",
         "dpc": "GeoJSON DPC",
         "dpc_gzip": "GeoJSON DPC, gzip",
-        "compact": "CSV compatto",
-        "compact_gzip": "CSV compatto, gzip",
+        "compact": "JSON compatto",
+        "compact_gzip": "JSON compatto, gzip",
         "composition": "Di cosa è fatto un file di criticità (quota dei byte)",
         "geometry": "Forme delle zone",
         "municipalities": "Elenchi dei comuni",
@@ -1005,6 +1065,7 @@ async def main() -> None:
             )
             for key, (repo, path) in day_files.items()
         }
+        quarter_results = await quarter(session)
         repositories = {
             repo: (await api(session, repo))["size"]
             for repo in (CRITICALITY_REPO, VIGILANCE_REPO)
@@ -1024,6 +1085,7 @@ async def main() -> None:
             "vigilance": DAY_VIGILANCE,
             **day_results,
         },
+        "quarter": quarter_results,
         "repository_kilobytes": repositories,
     }
     RESULTS.write_text(

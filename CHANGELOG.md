@@ -5,6 +5,28 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.9.0] - Unreleased
+
+The compact bulletins are JSON only: one document per bulletin, on a single
+line, so the bulletins of a period are a JSON Lines file. The JSON document
+keeps both bulletins in one file each, with their header, and its numbers
+stay numbers; compressed, it is about the size of the CSV it replaces.
+
+### Removed
+
+- **Breaking:** `CompactCriticality.to_csv()`, `CompactVigilance.to_csv()`,
+  `CompactVigilance.phenomena_csv()`, `ZoneTable.to_csv()` and
+  `aiodpc.compact.MUNICIPALITY_SEPARATOR`. Use `to_json()`: the same rows
+  under `"rows"`, in the order of `"columns"`, and the phenomena under
+  `"phenomena"`. For a table, `pandas.DataFrame(document["rows"],
+  columns=document["columns"])`.
+
+### Added
+
+- `data/2026-Q3` in the repository: every bulletin of the third quarter of
+  2026 as JSON Lines, 1.1 MB for the 1.8 GB of GeoJSON that DPC published,
+  with examples in pandas and DuckDB. `data/build.py` writes any quarter.
+
 ## [0.8.0] - 2026-11-16
 
 ### Added
@@ -235,6 +257,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.9.0]: https://github.com/webysther/aiodpc/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/webysther/aiodpc/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/webysther/aiodpc/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/webysther/aiodpc/compare/v0.5.0...v0.6.0

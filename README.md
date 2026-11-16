@@ -544,12 +544,15 @@ as numbers: one record of codes per zone and day, and the zones in a table of
 their own (`ZoneTable`), coded by their position in name order. The zones are
 almost all the bytes of the DPC files and change rarely; the table's
 `fingerprint` changes when they do, so a consumer keeps the table and fetches
-it again only then. `to_csv()` and `to_json()` write the records,
-`phenomena_csv()` the phenomena, and the zone table has `to_csv()`,
-`to_json()` and `to_geojson()` (the shapes, to publish once per fingerprint).
+it again only then. `to_json()` writes a bulletin as one JSON document on a
+single line, with the records and, for the vigilance bulletin, the
+phenomena: the bulletins of a period are a JSON Lines file, one per line. The
+zone table has `to_json()` and `to_geojson()` (the shapes, to publish once
+per fingerprint).
 
 ```python
 import asyncio
+import json
 
 from aiodpc import AlertLevel, DpcClient, RiskType, Translator
 
@@ -560,14 +563,17 @@ async def main() -> None:
         vigilance = (await dpc.get_vigilance_map()).compact()
 
     documents = {
-        "criticality": criticality.to_csv(),
-        "vigilance": vigilance.to_csv(),
-        "phenomena": vigilance.phenomena_csv(),
+        "criticality": criticality.to_json(),
+        "vigilance": vigilance.to_json(),
         "zones": criticality.zones.to_json(),
     }
     for name, text in documents.items():
         print(f"{name:<12} {len(text.encode()):>7,} bytes")
-    print(criticality.to_csv().splitlines()[0])
+    print(json.loads(documents["criticality"])["columns"])
+
+    # One bulletin per line: the history of the bulletins as JSON Lines
+    with open("criticality.jsonl", "a", encoding="utf-8") as file:
+        file.write(documents["criticality"] + "\n")
 
     # The codes give the values back, in any language
     tell = Translator("pt-BR")
@@ -585,15 +591,14 @@ Run on 16 November 2026, when the criticality bulletin of the day before
 still covered its second day:
 
 ```text
-criticality    3,337 bytes
-vigilance        999 bytes
-phenomena      3,962 bytes
+criticality    3,822 bytes
+vigilance      5,742 bytes
 zones        123,624 bytes
-day,zone,level,criticality,mapped_risk,hydraulic,thunderstorms,hydrogeological
+['day', 'zone', 'level', 'criticality', 'mapped_risk', 'hydraulic', 'thunderstorms', 'hydrogeological']
 CriticalityRecord(day=1, zone=30, level=2, criticality=2, mapped_risk=3, hydraulic=1, thunderstorms=1, hydrogeological=2) Alerta amarelo Risco hidrogeológico
 ```
 
-A full day of both bulletins is about 13 kB of CSV instead of 19 MB of
+A full day of both bulletins is about 15 kB of JSON instead of 19 MB of
 GeoJSON. The [study](https://github.com/webysther/aiodpc/blob/main/docs/study/en.md)
 measures it and proposes this model to DPC.
 

@@ -2062,28 +2062,52 @@
     "dpc_bytes": 19293977,
     "dpc_gzip": 7567390,
     "compact": {
-      "criticality.csv": 6595,
-      "vigilance.csv": 1487,
-      "phenomena.csv": 5338
+      "criticality.json": 7454,
+      "vigilance.json": 7874
     },
-    "compact_bytes": 13420,
-    "compact_gzip": 3762,
+    "compact_bytes": 15330,
+    "compact_gzip": 3996,
     "references": {
       "criticality_zones.json": 123624,
       "vigilance_zones.json": 154696,
       "criticality_zones.geojson": 5343409,
       "vigilance_zones.geojson": 2558724
     },
-    "ratio": 1437.7032041728762,
-    "ratio_gzip": 2011.5337586390217,
+    "ratio": 1258.5764514024788,
+    "ratio_gzip": 1893.7412412412411,
     "zone_sets": [
       "68bcac32826e",
       "d124f4a6cd97"
     ],
-    "decode_dpc_seconds": 0.401680126786232,
-    "decode_compact_seconds": 0.00029231607913970947,
+    "decode_dpc_seconds": 0.40514615597203374,
+    "decode_compact_seconds": 0.0003104661591351032,
     "year_dpc_bytes": 7042301605,
-    "year_compact_bytes": 4898300
+    "year_compact_bytes": 5595450
+  },
+  "quarter": {
+    "quarter": "2026-Q3",
+    "bulletins": {
+      "criticality": 97,
+      "vigilance": 92
+    },
+    "first": {
+      "criticality": "20260701_1543",
+      "vigilance": "20260701"
+    },
+    "last": {
+      "criticality": "20260930_1423",
+      "vigilance": "20260930"
+    },
+    "dpc_files": 746,
+    "dpc_bytes": 1826596107,
+    "jsonl_bytes": {
+      "criticality": 723135,
+      "vigilance": 391141
+    },
+    "compact_bytes": 1114276,
+    "compact_gzip": 101374,
+    "zones_bytes": 8180439,
+    "ratio": 1639.2672075859123
   },
   "repository_kilobytes": {
     "pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica": 6587163,

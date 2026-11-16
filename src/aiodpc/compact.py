@@ -5,8 +5,11 @@ each value (see the data dictionary), and the zones in a table of their own.
 The zones are almost all the bytes of the DPC files and change rarely (four
 times from 2020 to 2026): a consumer keeps the zone table and fetches it again
 only when its :attr:`ZoneTable.fingerprint` changes. A day of both bulletins
-is then about 13 kB of CSV instead of 19 MB of GeoJSON, and any
+is then about 15 kB of JSON instead of 19 MB of GeoJSON, and any
 :class:`aiodpc.Translator` tells it in its language.
+
+Each bulletin is a JSON document on a single line, so the bulletins of a
+period are a JSON Lines file: one bulletin per line.
 
 Get one from :meth:`aiodpc.CriticalityMap.compact` or
 :meth:`aiodpc.VigilanceMap.compact`; this module does no I/O.
@@ -14,9 +17,7 @@ Get one from :meth:`aiodpc.CriticalityMap.compact` or
 
 from __future__ import annotations
 
-import csv
 import hashlib
-import io
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -35,9 +36,6 @@ FINGERPRINT_LENGTH: Final = 12
 
 COORDINATE_DECIMALS: Final = 5
 """Decimals kept of the positions of the phenomena: about 1 m."""
-
-MUNICIPALITY_SEPARATOR: Final = "|"
-"""Separates the municipalities of a zone in the CSV of a zone table."""
 
 
 class CriticalityRecord(NamedTuple):
@@ -152,18 +150,12 @@ class ZoneTable:
                 return zone.code
         raise KeyError(name)
 
-    def to_csv(self) -> str:
-        """Return the table as CSV: code, name and municipalities, joined by "|"."""
-        return _csv(
-            ("code", "name", "municipalities"),
-            (
-                (zone.code, zone.name, MUNICIPALITY_SEPARATOR.join(zone.municipalities))
-                for zone in self.zones
-            ),
-        )
-
     def to_json(self) -> str:
-        """Return the table as a JSON document, municipalities as lists."""
+        """Return the table as a JSON document on one line.
+
+        Each row is the code, the name and the list of municipalities of a
+        zone.
+        """
         return _json(
             {
                 "schema": SCHEMA_VERSION,
@@ -204,12 +196,11 @@ class CompactCriticality:
     zones: ZoneTable
     records: tuple[CriticalityRecord, ...]
 
-    def to_csv(self) -> str:
-        """Return the records as CSV, with a header row."""
-        return _csv(CriticalityRecord._fields, self.records)
-
     def to_json(self) -> str:
-        """Return the records as a JSON document of columns and rows."""
+        """Return the records as a JSON document of columns and rows.
+
+        The document is on one line: a line of a JSON Lines file.
+        """
         return _json(
             {
                 **_header(BulletinKind.CRITICALITY, self.bulletin_id, self.zones),
@@ -228,16 +219,11 @@ class CompactVigilance:
     records: tuple[VigilanceRecord, ...]
     phenomena: tuple[PhenomenonRecord, ...]
 
-    def to_csv(self) -> str:
-        """Return the precipitation of each zone as CSV, with a header row."""
-        return _csv(VigilanceRecord._fields, self.records)
-
-    def phenomena_csv(self) -> str:
-        """Return the phenomena as CSV, with a header row."""
-        return _csv(PhenomenonRecord._fields, self.phenomena)
-
     def to_json(self) -> str:
-        """Return the records and phenomena as a JSON document."""
+        """Return the records and phenomena as a JSON document.
+
+        The document is on one line: a line of a JSON Lines file.
+        """
         return _json(
             {
                 **_header(BulletinKind.VIGILANCE, self.bulletin_id, self.zones),
@@ -261,15 +247,10 @@ def _header(kind: BulletinKind, bulletin_id: str, zones: ZoneTable) -> dict[str,
     }
 
 
-def _csv(columns: Sequence[str], rows: Iterable[Iterable[object]]) -> str:
-    """Return rows as CSV with a header row and Unix line endings."""
-    output = io.StringIO()
-    writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(columns)
-    writer.writerows(rows)
-    return output.getvalue()
-
-
 def _json(document: Mapping[str, Any]) -> str:
-    """Return a JSON document without spaces, keeping the accents."""
+    """Return a JSON document on one line, without spaces, keeping the accents.
+
+    ``json.dumps`` escapes the line breaks inside strings, so the document
+    never spans two lines.
+    """
     return json.dumps(document, ensure_ascii=False, separators=(",", ":"))

@@ -73,7 +73,7 @@ class CriticalityMap:
     def compact(self) -> CompactCriticality:
         """Return the bulletin of every zone as numeric codes.
 
-        About 7 kB of CSV for two days, instead of 11 MB of GeoJSON; see
+        About 7.5 kB of JSON for two days, instead of 11 MB of GeoJSON; see
         :mod:`aiodpc.compact`.
         """
         return compact_criticality(self.id, self._days)

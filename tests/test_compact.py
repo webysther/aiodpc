@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import copy
-import csv
-import io
 import json
 from typing import Any
 
@@ -64,9 +62,12 @@ def phenomena() -> dict[str, Any]:
     return real("phenomena_20261113_oggi.json")
 
 
-def rows(text: str) -> list[list[str]]:
-    """Return the rows of a CSV text, header included."""
-    return list(csv.reader(io.StringIO(text)))
+def one_line(document: str) -> dict[str, Any]:
+    """Return a JSON document after checking that it is a line of JSON Lines."""
+    assert "\n" not in document
+    data = json.loads(document)
+    assert isinstance(data, dict)
+    return data
 
 
 def test_criticality_records_are_the_dpc_values() -> None:
@@ -114,15 +115,10 @@ def test_criticality_record_of_rome() -> None:
     )
 
 
-def test_criticality_csv_and_json() -> None:
-    """The CSV and JSON documents hold the same rows as the records."""
+def test_criticality_json() -> None:
+    """The JSON document holds the same rows as the records, on one line."""
     compact = compact_criticality(CRIT_ID, [(0, criticality())])
-    table = rows(compact.to_csv())
-    assert table[0] == list(CriticalityRecord._fields)
-    assert [[int(value) for value in row] for row in table[1:]] == [
-        list(record) for record in compact.records
-    ]
-    document = json.loads(compact.to_json())
+    document = one_line(compact.to_json())
     assert document["schema"] == SCHEMA_VERSION
     assert document["kind"] == BulletinKind.CRITICALITY.code
     assert document["bulletin"] == CRIT_ID
@@ -160,15 +156,12 @@ def test_vigilance_records_and_phenomena() -> None:
         assert PhenomenonType.from_code(event.code) is not None
 
 
-def test_vigilance_csv_and_json() -> None:
-    """The CSV and JSON documents of the vigilance bulletin."""
+def test_vigilance_json() -> None:
+    """The JSON document of the vigilance bulletin, with its phenomena."""
     compact = compact_vigilance(VIGI_ID, [(0, vigilance(), phenomena())])
-    assert rows(compact.to_csv())[0] == list(VigilanceRecord._fields)
-    table = rows(compact.phenomena_csv())
-    assert table[0] == list(PhenomenonRecord._fields)
-    assert len(table) == len(compact.phenomena) + 1
-    document = json.loads(compact.to_json())
+    document = one_line(compact.to_json())
     assert document["kind"] == BulletinKind.VIGILANCE.code
+    assert document["columns"] == list(VigilanceRecord._fields)
     assert document["rows"] == [list(record) for record in compact.records]
     assert document["phenomena"]["columns"] == list(PhenomenonRecord._fields)
     assert document["phenomena"]["rows"] == [
@@ -252,12 +245,8 @@ def test_zone_table() -> None:
     assert table.code_of("Zona B") == 2
     with pytest.raises(KeyError):
         table.code_of("Zona C")
-    assert rows(table.to_csv()) == [
-        ["code", "name", "municipalities"],
-        ["1", "Zona A", "Comune 3"],
-        ["2", "Zona B", "Comune 1|Comune 2"],
-    ]
-    document = json.loads(table.to_json())
+    document = one_line(table.to_json())
+    assert document["columns"] == ["code", "name", "municipalities"]
     assert document["zone_set"] == table.fingerprint
     assert document["rows"] == [
         [1, "Zona A", ["Comune 3"]],
@@ -270,3 +259,10 @@ def test_zone_table() -> None:
         {"code": 2, "name": "Zona B"},
     ]
     assert geojson["features"][1]["geometry"] == square
+
+
+def test_json_stays_on_one_line() -> None:
+    """A line break in a name is escaped: each document is one JSON line."""
+    table = ZoneTable.of([("Zona\nA", ["Comune\r\n1"], None)])
+    document = one_line(table.to_json())
+    assert document["rows"] == [[1, "Zona\nA", ["Comune\r\n1"]]]

@@ -68,9 +68,10 @@ characters lost to encoding errors in every bulletin, municipality lists that
 accumulated up to 748,705 repeated names, bulletins without municipalities,
 and zones renamed without stable identifiers. As its artefact, the study
 proposes a coded data model, made of a versioned reference of the zones and
-three small daily tables of numeric codes, and demonstrates it in an
-open-source client library. One day of both bulletins shrinks from 19.3~MB to
-13.4~kB, and every value can be rendered in any language. The findings inform
+a small JSON document of numeric codes for each bulletin, and demonstrates it
+in an open-source client library. One day of both bulletins shrinks from
+19.3~MB to 15.3~kB, a quarter of bulletins from 1.83~GB to 1.1~MB, and every
+value can be rendered in any language. The findings inform
 publishers of warning data and the implementation of high-value dataset
 obligations.
 \end{abstract}
@@ -190,8 +191,9 @@ visible.
 
 The W3C Data on the Web Best Practices recommend, among others, persistent
 identifiers, versioned data, standardised vocabularies and metadata that
-describe the structure of the data \citep{loscio2017}. Tabular data can be
-described by CSV on the Web metadata \citep{tennison2015}. The FAIR principles
+describe the structure of the data \citep{loscio2017}. JSON, the syntax of
+GeoJSON, is an Internet standard \citep{bray2017}, and the structure of a JSON
+document can be described by JSON Schema \citep{pezoa2016}. The FAIR principles
 ask for globally unique and persistent identifiers, rich metadata and the use
 of shared vocabularies, so that data are findable, accessible, interoperable
 and reusable \citep{wilkinson2016}. GeoJSON, the format of the DPC files, notes
@@ -250,9 +252,11 @@ texts and defects of the files (Section~\ref{sec:results}) \\
 Objectives of a solution & Smaller files, values independent of language,
 stable identifiers, no change for current reusers
 (Section~\ref{sec:design}) \\
-Design and development & A versioned reference of the zones, daily tables of
-codes and code lists, implemented in \library{} (Section~\ref{sec:design}) \\
-Demonstration & The tables of a fixed bulletin, built from the current files
+Design and development & A versioned reference of the zones, a daily document
+of codes per bulletin and code lists, implemented in \library{}
+(Section~\ref{sec:design}) \\
+Demonstration & The documents of a fixed bulletin, built from the current
+files, and a quarter of bulletins as JSON Lines
 (Section~\ref{sec:demonstration}) \\
 Evaluation & Sizes and reading times measured on a full day; the tests of the
 implementation (Section~\ref{sec:evaluation}) \\
@@ -616,20 +620,25 @@ and one of the vigilance zones, each zone with a stable code, its name, its
 shape and the ISTAT codes of its municipalities. A new version is released only
 when the zones change, with the date from which it applies; previous versions
 remain available.
-\item \emph{Three daily tables of codes}, each naming the version of the zones
-it uses: criticality (day, zone, alert level of the zone, risk shown on the
-map, alert level of each risk); vigilance (day, zone, precipitation class); and
-phenomena (day, phenomenon code, latitude, longitude).
+\item \emph{A daily document of codes for each bulletin}, naming the version of
+the zones it uses, with a row of codes per zone and day: criticality (day,
+zone, alert level of the zone, risk shown on the map, alert level of each
+risk); vigilance (day, zone, precipitation class), with the phenomena (day,
+phenomenon code, latitude, longitude).
 \item \emph{Code lists} for every value, with their labels in Italian, which
 keep the codes DPC already uses (\field{id\_classificazione},
 \field{id\_fenomeno}).
 \end{enumerate}
 
 The design follows the W3C best practices on identifiers, versioning and
-vocabularies \citep{loscio2017}; the daily tables can be published as CSV
-described by CSV on the Web metadata \citep{tennison2015}, and stable
-identifiers with shared code lists support interoperability and reuse in the
-sense of the FAIR principles \citep{wilkinson2016}. A separate column for the
+vocabularies \citep{loscio2017}. The documents are JSON \citep{bray2017},
+the syntax DPC already releases, and their structure can be described by a
+JSON Schema \citep{pezoa2016}. Each document fits on one line, so the
+documents of a period, one per line, form a JSON
+Lines\footnote{\url{https://jsonlines.org}} file: the history of a bulletin
+in a single file that grows by one line per release. Stable identifiers with
+shared code lists support interoperability and reuse in the sense of the FAIR
+principles \citep{wilkinson2016}. A separate column for the
 criticality is not needed, since in every bulletin measured it follows from the
 alert level (Table~\ref{tab:values}), but it can be kept for clarity.
 
@@ -637,47 +646,59 @@ alert level (Table~\ref{tab:values}), but it can be kept for clarity.
 \label{sec:demonstration}
 
 \Library{}, an open-source Python client of the DPC bulletins, implements the
-model: it builds the three daily tables and the reference of the zones from
-the current files, and it renders every code in six languages (English,
-Italian, Brazilian Portuguese, French, German and Spanish). Its Italian labels
+model: it builds the daily documents and the reference of the zones from the
+current files, and it renders every code in 13 languages, among them Italian,
+English, French, German and Spanish. Its Italian labels
 reproduce every text that DPC writes, which its tests verify. Since DPC
 publishes no zone codes, the implementation numbers the zones by name and marks
 each set of zones with a fingerprint, a digest of their names, municipalities
 and shapes, so that a reuser knows when to fetch the reference again; codes
 issued by DPC would remain stable across versions. Applied to the bulletins of
-15 November 2026, it yields rows such as the following, in which zone~28 has a
-green alert for every risk on the current day:
+15 November 2026, it yields documents such as the following (shortened), of
+7.5~kB for the criticality bulletin, in which zone~28 has a green alert for
+every risk on the current day:
 
 \begin{verbatim}
-day,zone,level,criticality,mapped_risk,hydraulic,thunderstorms,hydrogeological
-0,28,1,1,0,1,1,1
+{"schema":1,"kind":1,"bulletin":"20261115_1421",
+ "zone_set":"68bcac32826e",
+ "columns":["day","zone","level","criticality","mapped_risk",
+            "hydraulic","thunderstorms","hydrogeological"],
+ "rows":[[0,28,1,1,0,1,1,1],[0,39,1,1,0,1,1,1],...]}
 \end{verbatim}
+
+The same implementation wrote every bulletin of the third quarter of 2026 as
+two JSON Lines files: the 97 criticality and 92 vigilance bulletins released
+from 1 July to 30 September take 1.1~MB, and 101~kB compressed, against
+1.83~GB in the 746 files that DPC released for them, 1,639 times less. All of
+them use one set of zones of each kind, whose two references add 8.2~MB once.
+The files are available with the implementation, as an example for reusers.
 
 \subsection{Evaluation}
 \label{sec:evaluation}
 
 Table~\ref{tab:savings} and Fig.~\ref{fig:sizes} compare the files of one day
-with the daily tables that carry the same values. One day of both bulletins
-shrinks from 19.3~MB to 13.4~kB, 1,438 times less, and from 7.6~MB to 3.8~kB
-compressed, 2,012 times less. A year of both bulletins would take 4.9~MB
-instead of 7.0~GB. Reading a day takes about 0.4~s from the GeoJSON files and
-0.3~ms from the tables. The reference of the zones weighs 5.3~MB (alert zones)
+with the daily documents that carry the same values. One day of both
+bulletins shrinks from 19.3~MB to 15.3~kB, 1,259 times less, and from 7.6~MB
+to 4.0~kB compressed, 1,894 times less. A year of both bulletins would take
+5.6~MB instead of 7.0~GB. Reading a day takes about 0.4~s from the GeoJSON
+files and 0.3~ms from the documents. The reference of the zones weighs 5.3~MB (alert zones)
 and 2.6~MB (vigilance zones) as GeoJSON, and 124~kB and 155~kB as tables of
 names and municipalities, and it is downloaded once per version: 15 times in
 the period of the census, compared with every day.
 
 \begin{table}[t]
 \centering
-\caption{Bytes of the bulletins as released and as coded tables.}
+\caption{Bytes of the bulletins as released and as coded JSON documents.}
 \label{tab:savings}
 \small
 \begin{tabular}{@{}lrrr@{}}
 \toprule
- & GeoJSON & Coded tables & Ratio \\
+ & GeoJSON & Coded JSON & Ratio \\
 \midrule
-One day & 19.3~MB & 13.4~kB & 1,438 \\
-One day, gzip & 7.6~MB & 3.8~kB & 2,012 \\
-One year (365 days) & 7.0~GB & 4.9~MB & \\
+One day & 19.3~MB & 15.3~kB & 1,259 \\
+One day, gzip & 7.6~MB & 4.0~kB & 1,894 \\
+One quarter (2026 Q3, 189 bulletins) & 1.83~GB & 1.1~MB & 1,639 \\
+One year (365 days) & 7.0~GB & 5.6~MB & \\
 Reading one day & about 0.4~s & 0.3~ms & over 1,000 \\
 \bottomrule
 \end{tabular}
@@ -686,8 +707,8 @@ Reading one day & about 0.4~s & 0.3~ms & over 1,000 \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.85\linewidth]{en-sizes.pdf}
-\caption{Bytes of one day of both bulletins, as released and as coded tables
-(logarithmic scale).}
+\caption{Bytes of one day of both bulletins, as released and as coded JSON
+documents (logarithmic scale).}
 \label{fig:sizes}
 \end{figure}
 
@@ -794,8 +815,8 @@ bulletin over almost seven years. Over 96\% of each file is a static reference
 that changed 14 times; the alerts are a few kilobytes of values from small
 closed sets; and the files show encoding, accumulation and completeness defects
 that only a census could date. A coded data model, with a versioned reference
-of the zones and three small daily tables, carries the same information in
-1,438 times fewer bytes and in any language, without changing the current
+of the zones and a small daily JSON document per bulletin, carries the same
+information in 1,259 times fewer bytes and in any language, without changing the current
 files. Future work includes extending the census to the vigilance bulletin and
 to the other formats, discussing the model with the publisher, and studying
 how reusers of warning data are affected by the defects and by the model.
@@ -806,8 +827,9 @@ how reusers of warning data are affected by the defects and by the model.
 The bulletins are released by the Dipartimento della Protezione Civile --
 Presidenza del Consiglio dei Ministri under the CC BY 4.0 licence
 \citep{dpc2026criticality,dpc2026vigilance}. The measurement script, its
-results file, the figures, the data dictionary of the codes and the
-implementation are available in \repository{}.
+results file, the figures, the data dictionary of the codes, the
+implementation and the bulletins of the third quarter of 2026 as JSON Lines
+are available in \repository{}.
 
 \section*{Declaration of generative AI and AI-assisted technologies in the
 manuscript preparation process}
