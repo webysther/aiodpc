@@ -57,6 +57,7 @@ docs/                data_dictionary.py writes data-dictionary.xlsx, the DPC dat
                      model with numeric codes, from the tables of aiodpc
 docs/study/          the study of the DPC data (en.md, it.md) and measure.py,
                      which makes every number it cites (results.json, figures)
+CITATION.cff         how to cite aiodpc and the study (author: Webysther Sperandio)
 ```
 
 The public API is what `aiodpc/__init__.py` exports in `__all__`, plus the
@@ -95,6 +96,9 @@ The coverage gate is 95% with branches; keep it at 100%.
   `async def main()`, `asyncio.run(main())`) that works when copied and
   pasted. Run each one against the live DPC data before changing it, and
   show its real output. Secondary examples go in `<details>`.
+- The study (`docs/study/en.md`, `it.md`) says the same in both languages.
+  Every number it cites comes from `results.json`, written by `measure.py`;
+  every claim of method cites its source in the References.
 - The tutorial grows from one question about one place to the whole country;
   `examples/tutorial.ipynb` tells the same story with maps. Keep them in step.
 

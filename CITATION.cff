@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: >-
+  If you use aiodpc, or its study of the open data of the DPC bulletins,
+  please cite them as below.
+title: "aiodpc: async Python client for the DPC alert and weather vigilance bulletins"
+type: software
+authors:
+  - family-names: Sperandio
+    given-names: Webysther
+repository-code: "https://github.com/webysther/aiodpc"
+url: "https://github.com/webysther/aiodpc"
+license: MIT
+keywords:
+  - civil protection
+  - protezione civile
+  - alert
+  - open data
+  - data quality
+  - Italy
+references:
+  - type: report
+    title: "The DPC alert bulletins as open data: a lighter model"
+    authors:
+      - family-names: Sperandio
+        given-names: Webysther
+    year: 2026
+    month: 11
+    version: "1"
+    languages:
+      - en
+    url: "https://github.com/webysther/aiodpc/blob/main/docs/study/en.md"
+  - type: report
+    title: "I bollettini di allerta del DPC come dati aperti: un modello più leggero"
+    authors:
+      - family-names: Sperandio
+        given-names: Webysther
+    year: 2026
+    month: 11
+    version: "1"
+    languages:
+      - it
+    url: "https://github.com/webysther/aiodpc/blob/main/docs/study/it.md"

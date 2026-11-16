@@ -1,7 +1,10 @@
 # I bollettini di allerta del DPC come dati aperti: un modello più leggero
 
+**Webysther Sperandio** · Versione 1 · 16 novembre 2026 ·
+[English version](en.md)
+
 *Uno studio dei dati aperti dei bollettini nazionali del Dipartimento della
-Protezione Civile (DPC), con una proposta. [English version](en.md).*
+Protezione Civile (DPC), con una proposta.*
 
 Ogni numero di questo documento è misurato da [`measure.py`](measure.py), che
 chiunque può eseguire di nuovo; i risultati sono in
@@ -33,15 +36,86 @@ CC BY 4.0, in GeoJSON e in altri formati.
 - I file hanno difetti che un modello a codici evita: caratteri persi per un
   errore di codifica in ogni file, il nome di una zona troncato a 150 byte,
   elenchi di comuni che ripetono i nomi fino a 62 volte (dal 2020 al 2024),
-  due grafie degli stessi campi, e zone rinominate senza un identificativo
-  stabile.
+  due grafie degli stessi campi, zone rinominate senza un identificativo
+  stabile, e coordinate con 15 decimali dove 6 bastano.
 
 La proposta: mantenere i file attuali e pubblicare accanto a essi un
 riferimento delle zone con versioni (con codici stabili e i codici ISTAT dei
 comuni) e tre piccoli file giornalieri di codici numerici, secondo il
 [dizionario dei dati](../data-dictionary.xlsx).
 
-## 1. Cosa pubblica il DPC
+## 1. Disegno della ricerca
+
+### 1.1 Design science
+
+Lo studio segue la design science research, che costruisce un artefatto per
+risolvere un problema rilevante e lo valuta con rigore (Hevner et al., 2004),
+nelle sei attività della design science research methodology (Peffers et al.,
+2007). L'artefatto è un modello dei dati, con la sua prova di fattibilità; il
+contributo è il miglioramento di un problema noto con una soluzione nuova
+(Gregor & Hevner, 2013).
+
+| Attività (Peffers et al., 2007) | In questo studio |
+|---|---|
+| Identificazione del problema e motivazione | Sezioni da 2 a 6: dimensione, ridondanza, testi solo in italiano, difetti |
+| Obiettivi della soluzione | Sezione 7: più leggera, in nessuna lingua, con identificativi stabili, senza rompere i file attuali |
+| Progettazione e sviluppo | Il dizionario dei dati, i file giornalieri di codici, il riferimento delle zone, la loro implementazione in aiodpc |
+| Dimostrazione | Sezione 9: la prova di fattibilità su un bollettino fissato |
+| Valutazione | Sezione 8, misurata; e i test di aiodpc (501 test, copertura completa; le etichette italiane restituiscono ogni testo del DPC) |
+| Comunicazione | Questo studio, in italiano e in inglese, con il suo codice e i suoi dati |
+
+### 1.2 Modello di qualità dei dati
+
+I difetti sono classificati con il modello di qualità dei dati della ISO/IEC
+25012 (ISO/IEC, 2008), le cui caratteristiche si misurano come nella ISO/IEC
+25024 (ISO/IEC, 2015). È il modello che le linee guida italiane sui dati
+aperti raccomandano alle pubbliche amministrazioni per la qualità dei loro
+dati (AgID, 2023, paragrafo 5.3). Il modello estende le dimensioni della
+qualità dei dati di Wang e Strong (1996), ed è stato applicato ai dati aperti
+della pubblica amministrazione italiana (Vetrò et al., 2016).
+
+### 1.3 Dati e campionamento
+
+- **Censimento**: il file di riepilogo di ogni bollettino di criticità
+  pubblicato dal 1° gennaio 2020 al 15 novembre 2026, 2.572 in tutto.
+- **Campione ragionato**: 73 file GeoJSON di criticità (12.250 zone-giorno),
+  estratti a caso (seme 7) all'interno di tre strati di giorni di bollettino
+  scelti per la varietà dei loro testi: con allerta rossa, con allerta
+  arancione, con più rischi allo stesso livello. Il campionamento ragionato
+  sceglie i casi più informativi per la domanda e non rappresenta l'intera
+  popolazione (Etikan et al., 2016); la sezione 10 ne discute le conseguenze.
+- **Un giorno completo**: gli otto file del 15 novembre 2026.
+- **Triangolazione** (Denzin, 1978): l'insieme chiuso dei testi si ritrova sia
+  nei riepiloghi sia nelle zone del campione; il difetto di codifica è misurato
+  nei file e segnalato in modo indipendente sul repository del DPC
+  ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)).
+
+### 1.4 Riproducibilità computazionale
+
+Lo studio segue le regole della ricerca computazionale riproducibile (Sandve
+et al., 2013; Peng, 2011):
+
+- ogni numero viene da un solo script, [`measure.py`](measure.py), ed è
+  scritto in [`results.json`](results.json); un controllo confronta ogni
+  numero del testo con esso;
+- i dati di ingresso sono fissati: l'ultimo giorno misurato, il bollettino del
+  giorno misurato per intero e il seme del campione sono costanti dello script,
+  e i file del DPC restano pubblicati;
+- nulla è modificato a mano tra i dati e le figure, che lo script disegna;
+- il codice, le sue versioni e i test sono pubblici, nel repository di aiodpc.
+
+Per eseguirlo di nuovo:
+
+```bash
+pip install --editable . --group docs
+python docs/study/measure.py CACHE_DIR
+```
+
+Scarica circa 450 MB in `CACHE_DIR` e restituisce gli stessi numeri, tranne le
+dimensioni dei repository, che crescono ogni giorno, e i tempi di lettura, che
+dipendono dalla macchina.
+
+## 2. Cosa pubblica il DPC
 
 I bollettini sono pubblicati su
 [mappe.protezionecivile.gov.it](https://mappe.protezionecivile.gov.it/) e in
@@ -79,7 +153,7 @@ forma, la classe dei quantitativi previsti (`id_classificazione`, un numero)
 e il suo testo (`Quantitativi_previsti`). Un fenomeno è un punto con un codice
 (`id_fenomeno`, un numero).
 
-## 2. Di cosa sono fatti i file
+## 3. Di cosa sono fatti i file
 
 ![Di cosa è fatto un file di criticità](figures/it-composition.png)
 
@@ -92,11 +166,13 @@ Il bollettino vero e proprio, ciò che cambia da un giorno all'altro, è tra lo
 0,3% e l'1,4% di un file di zone. I file dei fenomeni sono già piccoli (da 20
 a 29 kB).
 
-## 3. Le zone cambiano di rado
+Le coordinate delle forme della criticità hanno fino a 15 decimali, quelle
+della vigilanza fino a 8. La specifica GeoJSON osserva che 6 decimali
+corrispondono a circa 10 cm (Butler et al., 2016, sezione 11.2): con 6, le
+forme della criticità sono più leggere del 44,4% e le forme di un giorno del
+32,3% (12,4 MB invece di 18,3 MB), senza cambiare formato.
 
-Un campione di 73 file di criticità da luglio 2020 a settembre 2026, estratto
-tra i giorni con allerta rossa, con allerta arancione e con più rischi
-(12.250 zone-giorno), racconta la storia delle zone:
+## 4. Le zone cambiano di rado
 
 ![Zone di allerta nel campione](figures/it-zones.png)
 
@@ -120,7 +196,7 @@ Pubblicare le forme ogni giorno invia di nuovo gli stessi 5,3 MB di forme
 della criticità e 2,6 MB di forme della vigilanza: 18,3 dei 19,3 MB di un
 giorno.
 
-## 4. Ogni valore appartiene a un insieme chiuso
+## 5. Ogni valore appartiene a un insieme chiuso
 
 I riepiloghi HTML di tutti i 2.572 bollettini, e ogni zona del campione, usano
 solo questi testi:
@@ -146,28 +222,38 @@ una sola lingua. In numeri, ogni valore è un codice; un elenco dei codici ne
 dà l'etichetta in italiano, e in qualsiasi lingua. aiodpc lo fa oggi in sei
 lingue.
 
-## 5. Difetti che i codici evitano
+## 6. Difetti, per caratteristica di qualità
 
-| Difetto | Misura |
-|---|---|
-| Caratteri persi per un errore di codifica | "Valle d?Aosta" (Valle d’Aosta) in tutti i 73 file del campione; "Savogna d'Isonzo-Sovodnje ob So?i" (Soči) in 19 |
-| Il nome di una zona troncato | Dal 2026-08, "…Valle di Champorcher e Valle di Gressoney" è "…Valle di Gresso": 146 caratteri, esattamente 150 byte con i suoi due apostrofi tipografici, il che fa pensare a un campo di 150 byte |
-| Comuni ripetuti | 21 dei 73 file del campione, dal 2020 a febbraio 2024, ripetono i nomi fino a 62 volte: 4.671.290 voci per 598.107 comuni. Un file del 2020 elenca 205.375 nomi per 8.215 comuni. I file del 2026 non hanno ripetizioni |
-| Due grafie dello stesso campo | `Nome zona` e `Comuni` nei file di criticità, `Nome_Zona` e `comuni` in quelli di vigilanza |
-| Due lingue nei nomi dei file | `_today`, `_tomorrow` per i file di criticità; `_oggi`, `_domani`, `_dopodomani` per quelli di vigilanza e per le immagini di anteprima di entrambi |
-| Comuni solo per nome | Sette nomi (Peglio, Livo, Samone, Castro, San Teodoro, Calliano, Valverde) appartengono ciascuno a due comuni lontani; "Bolzano/Bozen" in un bollettino è "Bolzano" nell'altro |
-| Campi dei fenomeni | `id` è vuoto in tutti i fenomeni dei file del 15 novembre 2026; `data_bollettino` è una data con fuso orario ("2026-11-15Z") |
+Le caratteristiche sono quelle della ISO/IEC 25012 (sezione 1.2).
 
-## 6. La proposta
+| Caratteristica | Difetto | Misura |
+|---|---|---|
+| Accuratezza | Caratteri persi per un errore di codifica | "Valle d?Aosta" (Valle d’Aosta) in tutti i 73 file del campione; "Savogna d'Isonzo-Sovodnje ob So?i" (Soči) in 19. Segnalato sul repository del DPC nel 2024 ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)), con lo stesso "d?Aosta" in un commento di ottobre 2026 |
+| Accuratezza | Il nome di una zona troncato | Dal 2026-08, "…Valle di Champorcher e Valle di Gressoney" è "…Valle di Gresso": 146 caratteri, esattamente 150 byte con i suoi due apostrofi tipografici, il che fa pensare a un campo di 150 byte |
+| Coerenza | Comuni ripetuti | 21 dei 73 file del campione, dal 2020 a febbraio 2024, ripetono i nomi fino a 62 volte: 4.671.290 voci per 598.107 comuni. Un file del 2020 elenca 205.375 nomi per 8.215 comuni. I file del 2026 non hanno ripetizioni |
+| Coerenza | Due grafie dello stesso campo | `Nome zona` e `Comuni` nei file di criticità, `Nome_Zona` e `comuni` in quelli di vigilanza |
+| Coerenza | Due lingue nei nomi dei file | `_today`, `_tomorrow` per i file di criticità; `_oggi`, `_domani`, `_dopodomani` per quelli di vigilanza e per le immagini di anteprima di entrambi |
+| Tracciabilità | Zone senza identificativo | Le zone sono note solo per nome, e vengono rinominate (sezione 4) |
+| Accuratezza | Comuni solo per nome | Sette nomi (Peglio, Livo, Samone, Castro, San Teodoro, Calliano, Valverde) appartengono ciascuno a due comuni lontani; "Bolzano/Bozen" in un bollettino è "Bolzano" nell'altro |
+| Efficienza | Dati statici pubblicati ogni giorno | 18,3 dei 19,3 MB di un giorno sono forme che cambiano poche volte in sei anni (sezione 4) |
+| Efficienza | Precisione superflua | Coordinate con 15 decimali; 6 corrispondono a circa 10 cm (sezione 3) |
+| Conformità | Una data con fuso orario | `data_bollettino` è "2026-11-15Z", non una data ISO 8601 |
+| Completezza | Un campo vuoto | `id` è vuoto in tutti i fenomeni dei file del 15 novembre 2026 |
+
+La segnalazione originale dell'issue #10 descrive anche lettere accentate
+corrotte nei nomi dei comuni; i file GeoJSON del campione non ne hanno.
+
+## 7. La proposta
 
 Mantenere i file attuali, perché nessuna applicazione smetta di funzionare, e
 pubblicare accanto a essi:
 
 1. **Un riferimento delle zone, con versioni.** Un file delle zone di allerta
    e uno delle zone di vigilanza, ognuno con un codice stabile per zona, il
-   nome, la forma e i codici ISTAT dei comuni, ognuno una sola volta. Una
-   nuova versione solo quando le zone cambiano, con la data da cui vale; le
-   versioni precedenti restano disponibili.
+   nome, la forma e i codici ISTAT dei comuni (l'ISTAT li pubblica con la loro
+   storia), ognuno una sola volta. Una nuova versione solo quando le zone
+   cambiano, con la data da cui vale; le versioni precedenti restano
+   disponibili.
 2. **Tre piccoli file giornalieri di codici**, che indicano la versione delle
    zone che usano:
    - criticità: giorno, codice della zona, livello di allerta della zona,
@@ -179,14 +265,21 @@ pubblicare accanto a essi:
    [dizionario dei dati](../data-dictionary.xlsx) ne propone uno, che mantiene
    i codici già pubblicati dal DPC (`id_classificazione`, `id_fenomeno`).
 
+Seguono le Data on the Web Best Practices del W3C (Lóscio et al., 2017):
+identificativi persistenti, dati con versioni, vocabolari standard, metadati
+che descrivono la struttura. I file giornalieri possono essere CSV descritti
+da metadati CSV on the Web (Tennison & Kellogg, 2015). Identificativi stabili
+ed elenchi di codici condivisi rendono i dati anche interoperabili e
+riutilizzabili nel senso dei principi FAIR (Wilkinson et al., 2016).
+
 Alcune correzioni sono utili anche nei file attuali: UTF-8 ovunque, nessun
-limite che tronchi i nomi, la stessa grafia dei campi nei due bollettini, e
-date in ISO 8601 (`2026-11-15`).
+limite che tronchi i nomi, la stessa grafia dei campi nei due bollettini,
+coordinate con 6 decimali, e date in ISO 8601 (`2026-11-15`).
 
 La criticità non richiede una colonna propria: in ogni bollettino misurato
 deriva dal livello di allerta. Può essere mantenuta per chiarezza.
 
-## 7. Cosa si risparmia
+## 8. Cosa si risparmia
 
 ![Byte di un giorno dei due bollettini](figures/it-sizes.png)
 
@@ -215,7 +308,7 @@ Oltre ai byte:
   o un sistema di domotica possono seguire le allerte senza scaricare
   megabyte ogni giorno.
 
-## 8. Prova di fattibilità
+## 9. Prova di fattibilità
 
 [aiodpc](https://github.com/webysther/aiodpc), un client Python open source dei
 bollettini del DPC, produce questi file da quelli attuali. Gli stessi codici
@@ -265,24 +358,116 @@ loro nome in ordine alfabetico e identifica l'insieme delle zone con
 un'impronta (`zone set`): i codici valgono finché le zone non cambiano. Codici
 stabili del DPC varrebbero anche attraverso i cambiamenti.
 
-## 9. Metodo e limiti
+## 10. Minacce alla validità
 
-- **Storia**: il file di riepilogo (`files/AAAAMMGG_HHMM.json`) di ogni
-  bollettino di criticità pubblicato dal 1° gennaio 2020 al 15 novembre 2026,
-  2.572 in tutto. I loro riepiloghi HTML indicano criticità, rischio e allerta
-  di ogni gruppo di zone.
-- **Campione**: 73 file GeoJSON di criticità, 25 estratti (seme 7) da ognuno
-  dei gruppi di giorni di bollettino: con allerta rossa (206 giorni), con
-  allerta arancione (1.052) e con più rischi allo stesso livello (2.854);
-  alcuni giorni sono in due gruppi. Il campione privilegia i giorni con
-  allerte, dove i testi variano di più; le date dei cambiamenti delle zone
-  sono quelle del primo file del campione che li mostra.
-- **Un giorno completo**: gli otto file del 15 novembre 2026.
-- **Non misurati**: i file TopoJSON, shapefile, XML e PDF, e la storia della
-  vigilanza prima di novembre 2026.
+Secondo Wohlin et al. (2012) e Runeson e Höst (2009):
 
-I dati sono © Dipartimento della Protezione Civile – Presidenza del Consiglio
-dei Ministri, sotto licenza
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Questo studio non è
-affiliato al DPC; è stato scritto con aiodpc, i cui autori accolgono volentieri
-correzioni.
+- **Validità di costrutto.** La dimensione è quella in byte dei file come sono
+  pubblicati, non compressi e compressi; ciò che viaggia in rete dipende dal
+  server, quindi si riportano entrambe. "La stessa informazione" significa
+  ogni valore delle allerte e dei fenomeni: i testi in italiano non sono
+  conservati come testo, ma sono un insieme chiuso (sezione 5) che i codici
+  restituiscono, come verificano i test di aiodpc. Le zone sono confrontate per
+  nome, quindi una zona rinominata conta come una tolta e una aggiunta.
+- **Validità interna.** Le misure vengono da uno script, che potrebbe essere
+  sbagliato. La lettura dei dati è testata (501 test, copertura completa), ogni
+  numero del testo è confrontato con `results.json`, e la misura ha corretto
+  un risultato di una prima stesura: un apparente cambio di ordine degli
+  elenchi dei comuni erano in realtà i nomi ripetuti della sezione 6.
+- **Validità esterna.** Il campione privilegia i giorni con allerte, quindi le
+  frequenze dei suoi testi non sono quelle di tutti i giorni; l'insieme chiuso
+  si basa sul censimento dei riepiloghi. Le date dei cambiamenti delle zone
+  sono precise quanto il campione. Le forme non sono state misurate su ogni
+  file (30,3 GB per i 5.140 file di criticità), la storia della vigilanza e i
+  file TopoJSON, shapefile, XML e PDF per niente. I risultati descrivono i
+  file fino al 15 novembre 2026; il DPC può cambiarli.
+- **Validità delle conclusioni e affidabilità.** I risultati sono conteggi e
+  dimensioni, non stime, quindi non richiedono inferenza statistica. Chiunque
+  può ripeterli con lo script e gli stessi dati di ingresso (sezione 1.4); i
+  tempi di lettura sono l'unica misura che dipende dalla macchina.
+
+## 11. Come citare
+
+Sperandio, W. (2026). *I bollettini di allerta del DPC come dati aperti: un
+modello più leggero* (Versione 1).
+https://github.com/webysther/aiodpc/blob/main/docs/study/it.md
+
+```bibtex
+@misc{sperandio2026dpc-it,
+  author       = {Sperandio, Webysther},
+  title        = {I bollettini di allerta del {DPC} come dati aperti: un modello più leggero},
+  year         = {2026},
+  month        = nov,
+  note         = {Versione 1. English version: docs/study/en.md},
+  howpublished = {\url{https://github.com/webysther/aiodpc/blob/main/docs/study/it.md}}
+}
+```
+
+Il file [`CITATION.cff`](../../CITATION.cff) del repository riporta lo stesso
+in altri formati ("Cite this repository" su GitHub).
+
+## Crediti
+
+- **Autore**: Webysther Sperandio.
+- **Dati**: © Dipartimento della Protezione Civile – Presidenza del Consiglio
+  dei Ministri, sotto licenza
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+- **Software**: [aiodpc](https://github.com/webysther/aiodpc), licenza MIT.
+
+Questo studio non è affiliato al DPC. Le correzioni sono benvenute come
+[issue di aiodpc](https://github.com/webysther/aiodpc/issues).
+
+## Bibliografia
+
+- AgID. (2023). *Linee guida recanti regole tecniche per l'apertura dei dati e
+  il riutilizzo dell'informazione del settore pubblico* (v. 1.0, Determinazione
+  n. 183/2023). Agenzia per l'Italia Digitale.
+  https://www.agid.gov.it/sites/default/files/repository_files/lg-open-data_v.1.0_1.pdf
+- Butler, H., Daly, M., Doyle, A., Gillies, S., Hagen, S., & Schaub, T. (2016).
+  *The GeoJSON format* (RFC 7946). IETF. https://doi.org/10.17487/RFC7946
+- Denzin, N. K. (1978). *The research act: A theoretical introduction to
+  sociological methods* (2nd ed.). McGraw-Hill.
+- Etikan, I., Musa, S. A., & Alkassim, R. S. (2016). Comparison of convenience
+  sampling and purposive sampling. *American Journal of Theoretical and Applied
+  Statistics, 5*(1), 1–4. https://doi.org/10.11648/j.ajtas.20160501.11
+- Gregor, S., & Hevner, A. R. (2013). Positioning and presenting design science
+  research for maximum impact. *MIS Quarterly, 37*(2), 337–355.
+  https://doi.org/10.25300/MISQ/2013/37.2.01
+- Hevner, A. R., March, S. T., Park, J., & Ram, S. (2004). Design science in
+  information systems research. *MIS Quarterly, 28*(1), 75–105.
+  https://doi.org/10.2307/25148625
+- ISO/IEC. (2008). *ISO/IEC 25012:2008. Software engineering — Software product
+  Quality Requirements and Evaluation (SQuaRE) — Data quality model*.
+- ISO/IEC. (2015). *ISO/IEC 25024:2015. Systems and software engineering —
+  Systems and software Quality Requirements and Evaluation (SQuaRE) —
+  Measurement of data quality*.
+- Lóscio, B. F., Burle, C., & Calegari, N. (Eds.). (2017). *Data on the Web
+  best practices* (W3C Recommendation). https://www.w3.org/TR/dwbp/
+- Peffers, K., Tuunanen, T., Rothenberger, M. A., & Chatterjee, S. (2007). A
+  design science research methodology for information systems research.
+  *Journal of Management Information Systems, 24*(3), 45–77.
+  https://doi.org/10.2753/MIS0742-1222240302
+- Peng, R. D. (2011). Reproducible research in computational science.
+  *Science, 334*(6060), 1226–1227. https://doi.org/10.1126/science.1213847
+- Runeson, P., & Höst, M. (2009). Guidelines for conducting and reporting case
+  study research in software engineering. *Empirical Software Engineering,
+  14*(2), 131–164. https://doi.org/10.1007/s10664-008-9102-8
+- Sandve, G. K., Nekrutenko, A., Taylor, J., & Hovig, E. (2013). Ten simple
+  rules for reproducible computational research. *PLoS Computational Biology,
+  9*(10), e1003285. https://doi.org/10.1371/journal.pcbi.1003285
+- Tennison, J., & Kellogg, G. (Eds.). (2015). *Model for tabular data and
+  metadata on the Web* (W3C Recommendation).
+  https://www.w3.org/TR/tabular-data-model/
+- Vetrò, A., Canova, L., Torchiano, M., Orozco Minotas, C., Iemma, R., &
+  Morando, F. (2016). Open data quality measurement framework: Definition and
+  application to Open Government Data. *Government Information Quarterly,
+  33*(2), 325–337. https://doi.org/10.1016/j.giq.2016.02.001
+- Wang, R. Y., & Strong, D. M. (1996). Beyond accuracy: What data quality means
+  to data consumers. *Journal of Management Information Systems, 12*(4), 5–33.
+  https://doi.org/10.1080/07421222.1996.11518099
+- Wilkinson, M. D., Dumontier, M., Aalbersberg, I. J., et al. (2016). The FAIR
+  guiding principles for scientific data management and stewardship.
+  *Scientific Data, 3*, 160018. https://doi.org/10.1038/sdata.2016.18
+- Wohlin, C., Runeson, P., Höst, M., Ohlsson, M. C., Regnell, B., & Wesslén, A.
+  (2012). *Experimentation in software engineering*. Springer.
+  https://doi.org/10.1007/978-3-642-29044-2

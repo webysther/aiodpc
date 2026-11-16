@@ -1,8 +1,11 @@
 # The DPC alert bulletins as open data: a lighter model
 
+**Webysther Sperandio** · Version 1 · 16 November 2026 ·
+[Versione italiana](it.md)
+
 *A study of the open data of the national bulletins of the Italian Civil
 Protection Department (Dipartimento della Protezione Civile, DPC), with a
-proposal. [Versione italiana](it.md).*
+proposal.*
 
 Every number below is measured by [`measure.py`](measure.py), which anyone can
 run again; its output is [`results.json`](results.json). The measurements use
@@ -31,14 +34,87 @@ are published as open data, under CC BY 4.0, in GeoJSON and other formats.
 - The files have defects that a model with codes avoids: characters lost by an
   encoding error in every file, a zone name cut at 150 bytes, municipality
   lists repeating names up to 62 times (2020 to 2024), two spellings of the
-  same fields, and zones renamed without an identifier that stays.
+  same fields, zones renamed without an identifier that stays, and
+  coordinates with 15 decimals where 6 are enough.
 
 The proposal: keep the current files, and publish next to them a versioned
 reference of the zones (with stable codes and the ISTAT codes of the
 municipalities) and three small daily files of numeric codes, following the
 [data dictionary](../data-dictionary.xlsx).
 
-## 1. What DPC publishes
+## 1. Research design
+
+### 1.1 Design science
+
+The study follows design science research, which builds an artefact to solve
+a relevant problem and evaluates it rigorously (Hevner et al., 2004), in the
+six activities of the design science research methodology (Peffers et al.,
+2007). Its artefact is a data model, with its proof of concept; the
+contribution is an improvement of a known problem with a new solution
+(Gregor & Hevner, 2013).
+
+| Activity (Peffers et al., 2007) | In this study |
+|---|---|
+| Problem identification and motivation | Sections 2 to 6: size, redundancy, Italian-only texts, defects |
+| Objectives of a solution | Section 7: smaller, in no language, with stable identifiers, without breaking the current files |
+| Design and development | The data dictionary, the daily files of codes, the reference of the zones, their implementation in aiodpc |
+| Demonstration | Section 9: the proof of concept on a fixed bulletin |
+| Evaluation | Section 8, measured; and the tests of aiodpc (501 tests, full coverage; the Italian labels give back every DPC text) |
+| Communication | This study, in English and Italian, with its code and data |
+
+### 1.2 Data quality model
+
+The defects are classified with the data quality model of ISO/IEC 25012
+(ISO/IEC, 2008), whose characteristics are measured as in ISO/IEC 25024
+(ISO/IEC, 2015). It is the model that the Italian open data guidelines
+recommend to public administrations for the quality of their data (AgID,
+2023, section 5.3). The model extends the
+data quality dimensions of Wang and Strong (1996), and has been applied to
+Italian open government data (Vetrò et al., 2016).
+
+### 1.3 Data and sampling
+
+- **Census**: the summary file of every criticality bulletin published from
+  1 January 2020 to 15 November 2026, 2,572 in all.
+- **Purposive sample**: 73 criticality GeoJSON files (12,250 zone-days),
+  drawn at random (seed 7) within three strata of bulletin days chosen for the
+  variety of their texts: with a red alert, with an orange alert, with several
+  risks at the same level. Purposive sampling selects the cases that inform
+  the question best, and does not represent the whole population (Etikan et
+  al., 2016); section 10 discusses what follows.
+- **One day in full**: the eight files of 15 November 2026.
+- **Triangulation** (Denzin, 1978): the closed set of texts is found both in
+  the summaries and in the zones of the sample; the encoding defect is
+  measured in the files and reported independently on the DPC repository
+  ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)).
+
+### 1.4 Computational reproducibility
+
+The study follows the rules of reproducible computational research (Sandve
+et al., 2013; Peng, 2011):
+
+- every number comes from one script, [`measure.py`](measure.py), and is
+  written to [`results.json`](results.json); a check compares each number of
+  the text with it;
+- the inputs are fixed: the last day measured, the bulletin of the day
+  measured in full and the seed of the sample are constants of the script, and
+  the files of DPC stay published;
+- nothing is edited by hand between the data and the figures, which the
+  script draws;
+- the code, its versions and the tests are public, in the aiodpc repository.
+
+To run it again:
+
+```bash
+pip install --editable . --group docs
+python docs/study/measure.py CACHE_DIR
+```
+
+It downloads about 450 MB into `CACHE_DIR` and gives the same numbers, except
+the sizes of the repositories, which grow every day, and the reading times,
+which depend on the machine.
+
+## 2. What DPC publishes
 
 The bulletins are published on
 [mappe.protezionecivile.gov.it](https://mappe.protezionecivile.gov.it/) and in
@@ -76,7 +152,7 @@ A vigilance zone carries its name (`Nome_Zona`), its municipalities
 (`id_classificazione`, a number) and its text (`Quantitativi_previsti`). A
 phenomenon is a point with a code (`id_fenomeno`, a number).
 
-## 2. What the files are made of
+## 3. What the files are made of
 
 ![What a criticality file is made of](figures/en-composition.png)
 
@@ -88,11 +164,13 @@ phenomenon is a point with a code (`id_fenomeno`, a number).
 The bulletin itself, what changes from one day to the next, is between 0.3%
 and 1.4% of a zone file. The phenomena files are small already (20 to 29 kB).
 
-## 3. The zones rarely change
+The coordinates of the criticality shapes have up to 15 decimals, those of the
+vigilance up to 8. The GeoJSON specification notes that 6 decimals are about
+10 cm (Butler et al., 2016, section 11.2): with 6, the criticality shapes are
+44.4% smaller and the shapes of a day 32.3% smaller (12.4 MB instead of
+18.3 MB), without changing format.
 
-A sample of 73 criticality files from July 2020 to September 2026, drawn among
-the days with red alerts, orange alerts and several risks (12,250 zone-days),
-gives the history of the zones:
+## 4. The zones rarely change
 
 ![Alert zones in the sampled bulletins](figures/en-zones.png)
 
@@ -115,7 +193,7 @@ Publishing the shapes every day sends the same 5.3 MB of criticality shapes
 and 2.6 MB of vigilance shapes again and again: 18.3 of the 19.3 MB of a
 day.
 
-## 4. Every value belongs to a closed set
+## 5. Every value belongs to a closed set
 
 The HTML summaries of all the 2,572 bulletins, and every zone of the sample,
 use only these texts:
@@ -139,28 +217,37 @@ A text that is always one of a few values is a code written in words, and in
 one language. As numbers, each value is a code; a list of codes gives its
 label in Italian, and in any language. aiodpc does it in six languages today.
 
-## 5. Defects that codes avoid
+## 6. Defects, by data quality characteristic
 
-| Defect | Measured |
-|---|---|
-| Characters lost by an encoding error | "Valle d?Aosta" (Valle d’Aosta) in every one of the 73 sampled files; "Savogna d'Isonzo-Sovodnje ob So?i" (Soči) in 19 |
-| A zone name cut short | Since 2026-08, "…Valle di Champorcher e Valle di Gressoney" is "…Valle di Gresso": 146 characters, exactly 150 bytes with its two typographic apostrophes, which suggests a 150-byte field |
-| Municipalities repeated | 21 of the 73 sampled files, from 2020 to February 2024, repeat names up to 62 times: 4,671,290 entries for 598,107 municipalities. A 2020 file lists 205,375 names for 8,215 municipalities. The files of 2026 have no repeats |
-| Two spellings of the same field | `Nome zona` and `Comuni` in the criticality files, `Nome_Zona` and `comuni` in the vigilance files |
-| Two languages in the file names | `_today`, `_tomorrow` for the criticality files; `_oggi`, `_domani`, `_dopodomani` for the vigilance files and the preview images of both |
-| Municipalities by name only | Seven names (Peglio, Livo, Samone, Castro, San Teodoro, Calliano, Valverde) each belong to two municipalities far apart; "Bolzano/Bozen" in one bulletin is "Bolzano" in the other |
-| Fields of the phenomena | `id` is empty in every phenomenon of the files of 15 November 2026; `data_bollettino` is a date with a time zone ("2026-11-15Z") |
+The characteristics are those of ISO/IEC 25012 (section 1.2).
 
-## 6. The proposal
+| Characteristic | Defect | Measured |
+|---|---|---|
+| Accuracy | Characters lost by an encoding error | "Valle d?Aosta" (Valle d’Aosta) in every one of the 73 sampled files; "Savogna d'Isonzo-Sovodnje ob So?i" (Soči) in 19. Reported on the DPC repository in 2024 ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)), with the same "d?Aosta" in a comment of October 2026 |
+| Accuracy | A zone name cut short | Since 2026-08, "…Valle di Champorcher e Valle di Gressoney" is "…Valle di Gresso": 146 characters, exactly 150 bytes with its two typographic apostrophes, which suggests a 150-byte field |
+| Consistency | Municipalities repeated | 21 of the 73 sampled files, from 2020 to February 2024, repeat names up to 62 times: 4,671,290 entries for 598,107 municipalities. A 2020 file lists 205,375 names for 8,215 municipalities. The files of 2026 have no repeats |
+| Consistency | Two spellings of the same field | `Nome zona` and `Comuni` in the criticality files, `Nome_Zona` and `comuni` in the vigilance files |
+| Consistency | Two languages in the file names | `_today`, `_tomorrow` for the criticality files; `_oggi`, `_domani`, `_dopodomani` for the vigilance files and the preview images of both |
+| Traceability | Zones without an identifier | Zones are known by their name only, and renamed (section 4) |
+| Accuracy | Municipalities by name only | Seven names (Peglio, Livo, Samone, Castro, San Teodoro, Calliano, Valverde) each belong to two municipalities far apart; "Bolzano/Bozen" in one bulletin is "Bolzano" in the other |
+| Efficiency | Static data published daily | 18.3 of the 19.3 MB of a day are shapes that change a few times in six years (section 4) |
+| Efficiency | Needless precision | Coordinates with 15 decimals; 6 are about 10 cm (section 3) |
+| Compliance | A date with a time zone | `data_bollettino` is "2026-11-15Z", not an ISO 8601 date |
+| Completeness | An empty field | `id` is empty in every phenomenon of the files of 15 November 2026 |
+
+The original report of issue #10 also describes broken accented letters in
+municipality names; the sampled GeoJSON files have none.
+
+## 7. The proposal
 
 Keep the current files, so that no application breaks, and publish next to
 them:
 
 1. **A reference of the zones, versioned.** One file of the alert zones and one
    of the vigilance zones, each with a stable code per zone, its name, its
-   shape and the ISTAT codes of its municipalities, each once. A new version
-   only when the zones change, with the date it applies from; the previous
-   versions stay.
+   shape and the ISTAT codes of its municipalities (ISTAT publishes them with
+   their history), each once. A new version only when the zones change, with
+   the date it applies from; the previous versions stay.
 2. **Three small daily files of codes**, which name the version of the zones
    they use:
    - criticality: day, zone code, alert level of the zone, risk shown on the
@@ -171,14 +258,21 @@ them:
    [data dictionary](../data-dictionary.xlsx) proposes one, which keeps the
    codes DPC already publishes (`id_classificazione`, `id_fenomeno`).
 
+These follow the W3C Data on the Web Best Practices (Lóscio et al., 2017):
+persistent identifiers, versioned data, standard vocabularies, metadata that
+describe the structure. The daily files can be CSV described by CSV on the
+Web metadata (Tennison & Kellogg, 2015). Stable identifiers and shared code
+lists also make the data interoperable and reusable in the sense of the FAIR
+principles (Wilkinson et al., 2016).
+
 Some fixes are worth making in the current files too: UTF-8 throughout, no
-limit that cuts names, the same spelling of the fields in both bulletins, and
-dates in ISO 8601 (`2026-11-15`).
+limit that cuts names, the same spelling of the fields in both bulletins,
+coordinates with 6 decimals, and dates in ISO 8601 (`2026-11-15`).
 
 The criticality does not need a column of its own: in every bulletin
 measured it follows from the alert level. It can be kept for clarity.
 
-## 7. What it saves
+## 8. What it saves
 
 ![Bytes of one day of both bulletins](figures/en-sizes.png)
 
@@ -207,7 +301,7 @@ Beyond the bytes:
   automation system can follow the alerts without downloading megabytes a
   day.
 
-## 8. Proof of concept
+## 9. Proof of concept
 
 [aiodpc](https://github.com/webysther/aiodpc), an open source Python client of
 the DPC bulletins, makes these files from the current ones. The same codes are
@@ -256,23 +350,113 @@ Since DPC publishes no zone codes, aiodpc numbers the zones by their names in
 alphabetical order, and marks the set of zones with a fingerprint: the codes
 hold until the zones change. Stable codes from DPC would hold across changes.
 
-## 9. Method and limits
+## 10. Threats to validity
 
-- **History**: the summary file (`files/YYYYMMDD_HHMM.json`) of every
-  criticality bulletin published from 1 January 2020 to 15 November 2026,
-  2,572 in all. Their HTML summaries name the criticality, risk and alert of
-  each group of zones.
-- **Sample**: 73 criticality GeoJSON files, 25 drawn (seed 7) from each group
-  of bulletin days: with a red alert (206 days), with an orange alert (1,052)
-  and with several risks at the same level (2,854); some days are in two
-  groups. The sample favours the days with alerts, where the texts vary most;
-  the dates of the changes of the zones are those of the first sampled file
-  that shows them.
-- **One day in full**: the eight files of 15 November 2026.
-- **Not measured**: the TopoJSON, shapefile, XML and PDF files, and the
-  vigilance history before November 2026.
+Following Wohlin et al. (2012) and Runeson and Höst (2009):
 
-The data is © Dipartimento della Protezione Civile – Presidenza del Consiglio
-dei Ministri, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-This study is not affiliated with DPC; it was written with aiodpc, whose
-authors welcome corrections.
+- **Construct validity.** Size is the bytes of the files as published, raw and
+  compressed; what travels on the network depends on the server, so both are
+  given. "The same information" means every value of the alerts and the
+  phenomena: the Italian texts are not kept as text, but they are a closed set
+  (section 5) that the codes give back, as the tests of aiodpc check. Zones
+  are matched by name, so a renamed zone counts as one removed and one added.
+- **Internal validity.** The measures come from a script, which could be
+  wrong. The parsing is tested (501 tests, full coverage), each number of the
+  text is checked against `results.json`, and the measuring changed a finding
+  of a first draft: an apparent change of order of the municipality lists was
+  in fact the repeated names of section 6.
+- **External validity.** The sample favours days with alerts, so the
+  frequencies of its texts are not those of all days; the closed set rests on
+  the census of the summaries. The dates of the changes of the zones are as
+  precise as the sample. The shapes were not measured on every file (30.3 GB
+  for the 5,140 criticality files), the vigilance history and the TopoJSON,
+  shapefile, XML and PDF files not at all. The results describe the files up
+  to 15 November 2026; DPC may change them.
+- **Conclusion validity and reliability.** The results are counts and sizes,
+  not estimates, so they need no statistical inference. Anyone can repeat
+  them with the script and the same inputs (section 1.4); the reading times
+  are the only measure that depends on the machine.
+
+## 11. How to cite
+
+Sperandio, W. (2026). *The DPC alert bulletins as open data: a lighter model*
+(Version 1). https://github.com/webysther/aiodpc/blob/main/docs/study/en.md
+
+```bibtex
+@misc{sperandio2026dpc,
+  author       = {Sperandio, Webysther},
+  title        = {The {DPC} Alert Bulletins as Open Data: A Lighter Model},
+  year         = {2026},
+  month        = nov,
+  note         = {Version 1. Italian version: docs/study/it.md},
+  howpublished = {\url{https://github.com/webysther/aiodpc/blob/main/docs/study/en.md}}
+}
+```
+
+The repository's [`CITATION.cff`](../../CITATION.cff) gives the same in other
+formats ("Cite this repository" on GitHub).
+
+## Credits
+
+- **Author**: Webysther Sperandio.
+- **Data**: © Dipartimento della Protezione Civile – Presidenza del Consiglio
+  dei Ministri, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+- **Software**: [aiodpc](https://github.com/webysther/aiodpc), MIT license.
+
+This study is not affiliated with DPC. Corrections are welcome as
+[issues of aiodpc](https://github.com/webysther/aiodpc/issues).
+
+## References
+
+- AgID. (2023). *Linee guida recanti regole tecniche per l'apertura dei dati e
+  il riutilizzo dell'informazione del settore pubblico* (v. 1.0, Determinazione
+  n. 183/2023). Agenzia per l'Italia Digitale.
+  https://www.agid.gov.it/sites/default/files/repository_files/lg-open-data_v.1.0_1.pdf
+- Butler, H., Daly, M., Doyle, A., Gillies, S., Hagen, S., & Schaub, T. (2016).
+  *The GeoJSON format* (RFC 7946). IETF. https://doi.org/10.17487/RFC7946
+- Denzin, N. K. (1978). *The research act: A theoretical introduction to
+  sociological methods* (2nd ed.). McGraw-Hill.
+- Etikan, I., Musa, S. A., & Alkassim, R. S. (2016). Comparison of convenience
+  sampling and purposive sampling. *American Journal of Theoretical and Applied
+  Statistics, 5*(1), 1–4. https://doi.org/10.11648/j.ajtas.20160501.11
+- Gregor, S., & Hevner, A. R. (2013). Positioning and presenting design science
+  research for maximum impact. *MIS Quarterly, 37*(2), 337–355.
+  https://doi.org/10.25300/MISQ/2013/37.2.01
+- Hevner, A. R., March, S. T., Park, J., & Ram, S. (2004). Design science in
+  information systems research. *MIS Quarterly, 28*(1), 75–105.
+  https://doi.org/10.2307/25148625
+- ISO/IEC. (2008). *ISO/IEC 25012:2008. Software engineering — Software product
+  Quality Requirements and Evaluation (SQuaRE) — Data quality model*.
+- ISO/IEC. (2015). *ISO/IEC 25024:2015. Systems and software engineering —
+  Systems and software Quality Requirements and Evaluation (SQuaRE) —
+  Measurement of data quality*.
+- Lóscio, B. F., Burle, C., & Calegari, N. (Eds.). (2017). *Data on the Web
+  best practices* (W3C Recommendation). https://www.w3.org/TR/dwbp/
+- Peffers, K., Tuunanen, T., Rothenberger, M. A., & Chatterjee, S. (2007). A
+  design science research methodology for information systems research.
+  *Journal of Management Information Systems, 24*(3), 45–77.
+  https://doi.org/10.2753/MIS0742-1222240302
+- Peng, R. D. (2011). Reproducible research in computational science.
+  *Science, 334*(6060), 1226–1227. https://doi.org/10.1126/science.1213847
+- Runeson, P., & Höst, M. (2009). Guidelines for conducting and reporting case
+  study research in software engineering. *Empirical Software Engineering,
+  14*(2), 131–164. https://doi.org/10.1007/s10664-008-9102-8
+- Sandve, G. K., Nekrutenko, A., Taylor, J., & Hovig, E. (2013). Ten simple
+  rules for reproducible computational research. *PLoS Computational Biology,
+  9*(10), e1003285. https://doi.org/10.1371/journal.pcbi.1003285
+- Tennison, J., & Kellogg, G. (Eds.). (2015). *Model for tabular data and
+  metadata on the Web* (W3C Recommendation).
+  https://www.w3.org/TR/tabular-data-model/
+- Vetrò, A., Canova, L., Torchiano, M., Orozco Minotas, C., Iemma, R., &
+  Morando, F. (2016). Open data quality measurement framework: Definition and
+  application to Open Government Data. *Government Information Quarterly,
+  33*(2), 325–337. https://doi.org/10.1016/j.giq.2016.02.001
+- Wang, R. Y., & Strong, D. M. (1996). Beyond accuracy: What data quality means
+  to data consumers. *Journal of Management Information Systems, 12*(4), 5–33.
+  https://doi.org/10.1080/07421222.1996.11518099
+- Wilkinson, M. D., Dumontier, M., Aalbersberg, I. J., et al. (2016). The FAIR
+  guiding principles for scientific data management and stewardship.
+  *Scientific Data, 3*, 160018. https://doi.org/10.1038/sdata.2016.18
+- Wohlin, C., Runeson, P., Höst, M., Ohlsson, M. C., Regnell, B., & Wesslén, A.
+  (2012). *Experimentation in software engineering*. Springer.
+  https://doi.org/10.1007/978-3-642-29044-2

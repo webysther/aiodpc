@@ -645,8 +645,15 @@ publishes to PyPI.
 
 ## Credits
 
-aiodpc derives from the [DPC Alert](https://github.com/caiosweet/Home-Assistant-custom-components-DPC-Alert)
+aiodpc is written by Webysther Sperandio. It derives from the
+[DPC Alert](https://github.com/caiosweet/Home-Assistant-custom-components-DPC-Alert)
 Home Assistant integration by caiosweet (MIT license).
+
+## Citation
+
+To cite aiodpc or its [study of the DPC data](https://github.com/webysther/aiodpc/blob/main/docs/study/en.md),
+use [`CITATION.cff`](https://github.com/webysther/aiodpc/blob/main/CITATION.cff)
+("Cite this repository" on GitHub) or the "How to cite" section of the study.
 
 ## License
 

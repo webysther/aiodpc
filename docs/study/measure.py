@@ -65,6 +65,9 @@ DOWNLOADS: Final = 12
 TIMINGS: Final = 5
 """Runs of each timing; the fastest is kept."""
 DAYS_PER_YEAR: Final = 365
+RFC7946_DECIMALS: Final = 6
+"""Decimals of a coordinate RFC 7946 (GeoJSON, section 11.2) finds enough:
+about 10 cm."""
 MEGABYTE: Final = 1e6
 INSIDE_LABEL: Final = 0.2
 """Smallest share of a bar whose label fits inside it."""
@@ -371,6 +374,21 @@ def sample_zones(
     }
 
 
+def rounded(value: Any, decimals: int) -> Any:  # noqa: ANN401 - JSON
+    """Return GeoJSON coordinates with their numbers rounded."""
+    if isinstance(value, float):
+        return round(value, decimals)
+    if isinstance(value, list):
+        return [rounded(item, decimals) for item in value]
+    return value
+
+
+def decimals_of(geometry: dict[str, Any] | None) -> int:
+    """Return the most decimals of the coordinates of a geometry."""
+    text = json.dumps(geometry["coordinates"]) if geometry else ""
+    return max((len(digits) for digits in re.findall(r"\.(\d+)", text)), default=0)
+
+
 def composition(data: bytes) -> dict[str, Any]:
     """Return the size of a GeoJSON file and what it is made of."""
     geojson = json.loads(data)
@@ -393,6 +411,19 @@ def composition(data: bytes) -> dict[str, Any]:
         "gzip": len(gzip.compress(data)),
         "features": len(features),
         "geometry": sum(size(feature["geometry"]) for feature in features),
+        "geometry_rfc7946_precision": sum(
+            size(
+                {
+                    **feature["geometry"],
+                    "coordinates": rounded(
+                        feature["geometry"]["coordinates"], RFC7946_DECIMALS
+                    ),
+                }
+            )
+            for feature in features
+            if feature["geometry"]
+        ),
+        "most_decimals": max(decimals_of(feature["geometry"]) for feature in features),
         "municipalities": municipalities,
         "other_properties": properties - municipalities,
     }

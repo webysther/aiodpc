@@ -40,7 +40,8 @@ change the API.
 - `docs/data-dictionary.xlsx`: every field of the DPC files and every value
   they take, with a numeric code, the text DPC writes and its translations.
 - `docs/study/`: a study of the DPC data, in English and Italian, with the
-  measurements and a proposal of a lighter data model.
+  measurements and a proposal of a lighter data model, and `CITATION.cff` to
+  cite aiodpc and the study.
 
 ### Changed
 

@@ -347,6 +347,8 @@
         "gzip": 2204074,
         "features": 187,
         "geometry": 5325539,
+        "geometry_rfc7946_precision": 2962685,
+        "most_decimals": 15,
         "municipalities": 116402,
         "other_properties": 77030
       },
@@ -355,6 +357,8 @@
         "gzip": 2204101,
         "features": 187,
         "geometry": 5325539,
+        "geometry_rfc7946_precision": 2962685,
+        "most_decimals": 15,
         "municipalities": 116402,
         "other_properties": 76471
       },
@@ -363,6 +367,8 @@
         "gzip": 1051583,
         "features": 71,
         "geometry": 2551583,
+        "geometry_rfc7946_precision": 2151903,
+        "most_decimals": 8,
         "municipalities": 151585,
         "other_properties": 8965
       },
@@ -371,6 +377,8 @@
         "gzip": 1047503,
         "features": 71,
         "geometry": 2551583,
+        "geometry_rfc7946_precision": 2151903,
+        "most_decimals": 8,
         "municipalities": 151585,
         "other_properties": 8523
       },
@@ -379,6 +387,8 @@
         "gzip": 1051060,
         "features": 71,
         "geometry": 2551583,
+        "geometry_rfc7946_precision": 2151903,
+        "most_decimals": 8,
         "municipalities": 151585,
         "other_properties": 8742
       },
@@ -387,6 +397,8 @@
         "gzip": 2439,
         "features": 63,
         "geometry": 3498,
+        "geometry_rfc7946_precision": 3249,
+        "most_decimals": 8,
         "municipalities": 0,
         "other_properties": 8450
       },
@@ -395,6 +407,8 @@
         "gzip": 3257,
         "features": 88,
         "geometry": 4887,
+        "geometry_rfc7946_precision": 4532,
+        "most_decimals": 8,
         "municipalities": 0,
         "other_properties": 11818
       },
@@ -403,6 +417,8 @@
         "gzip": 3373,
         "features": 91,
         "geometry": 5051,
+        "geometry_rfc7946_precision": 4693,
+        "most_decimals": 8,
         "municipalities": 0,
         "other_properties": 12231
       }
@@ -428,8 +444,8 @@
       "68bcac32826e",
       "d124f4a6cd97"
     ],
-    "decode_dpc_seconds": 0.3995849060593173,
-    "decode_compact_seconds": 0.00028046395163983107,
+    "decode_dpc_seconds": 0.7082935420330614,
+    "decode_compact_seconds": 0.0005162509623914957,
     "year_dpc_bytes": 7042301605,
     "year_compact_bytes": 4898300
   },
