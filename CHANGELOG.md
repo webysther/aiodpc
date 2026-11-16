@@ -5,6 +5,16 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
+## [0.8.0] - Unreleased
+
+### Added
+
+- Seven languages: Simplified Chinese (`zh-Hans`), Romanian, Arabic,
+  Ukrainian, Albanian, Bengali and Hindi, with a text for every value of the
+  models, as the other six. `Language.of` finds them by their tags, such as
+  `"zh-CN"`, `"uk_UA"` or `"hi-IN"`; Chinese in any script or region gets the
+  simplified texts.
+
 ## [0.7.0] - 2026-11-16
 
 ### Added
@@ -225,6 +235,7 @@ First release.
   `DpcLocationError`.
 - Pure parsing functions, no Home Assistant dependency, fully typed.
 
+[0.8.0]: https://github.com/webysther/aiodpc/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/webysther/aiodpc/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/webysther/aiodpc/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/webysther/aiodpc/compare/v0.4.1...v0.5.0

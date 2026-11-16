@@ -107,8 +107,9 @@ runtime-evaluated-decorators = ["dataclasses.dataclass"]
   "INP001", # scripts, not a package
   "T201", # they print
 ]
-"src/aiodpc/i18n/{de,en,es,fr,it,pt_br}.py" = [
-  "E501", # one text per line, as translators read and search them
+"src/aiodpc/i18n/{ar,bn,de,en,es,fr,hi,it,pt_br,ro,sq,uk,zh_hans}.py" = [
+  "E501",   # one text per line, as translators read and search them
+  "RUF001", # texts in other scripts, whose letters look like Latin ones
 ]
 "tests/**" = [
   "PLR2004", # magic values in assertions

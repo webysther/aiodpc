@@ -363,7 +363,7 @@ FIELDS: Final[Sequence[Sequence[str]]] = (
 
 ABOUT: Final = (
     "What this is",
-    "Every field of the open data files of the national DPC bulletins (criticality and weather vigilance), and every value they take, with a numeric code and its text in six languages.",
+    "Every field of the open data files of the national DPC bulletins (criticality and weather vigilance), and every value they take, with a numeric code and its text in every language of aiodpc.",
     "Why",
     'DPC writes most values as Italian text, such as "Ordinaria per rischio idrogeologico / ALLERTA GIALLA". A numeric code for each value makes the files simpler to read by programs and to translate into any language. These are the codes aiodpc uses, offered as a proposal of data model.',
     "Sheets",

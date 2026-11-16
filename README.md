@@ -330,9 +330,10 @@ DPC publishes a new one. The criticality bulletin is published every day by
 ### 7. Every language
 
 DPC writes in Italian, but the kitchens' volunteers and guests speak many
-languages. Every value of the bulletins has a text in English, Italian,
-Brazilian Portuguese, French, German and Spanish, so the same notice can be
-written in each of them, the DPC description included.
+languages. Every value of the bulletins has a text in thirteen of them:
+English, Italian, Brazilian Portuguese, French, German, Spanish, Simplified
+Chinese, Romanian, Arabic, Ukrainian, Albanian, Bengali and Hindi. So the same
+notice can be written in each of them, the DPC description included.
 
 ```python
 import asyncio
@@ -351,26 +352,40 @@ async def main() -> None:
 
     for language in Language:
         tell = Translator(language)
-        print(f"{language:<6} {tell(Day.TOMORROW)}: {tell.risk(risk)}.")
-        print(f"       DPC: {tell.description(risk)}.")
+        print(f"{language:<7} {tell(Day.TOMORROW)}: {tell.risk(risk)}.")
+        print(f"        DPC: {tell.description(risk)}.")
 
 
 asyncio.run(main())
 ```
 
 ```text
-en     Tomorrow: Yellow alert for hydrogeological risk.
-       DPC: Ordinary criticality for hydrogeological risk.
-it     Domani: Allerta gialla per rischio idrogeologico.
-       DPC: Ordinaria per rischio idrogeologico.
-pt-BR  Amanhã: Alerta amarelo para risco hidrogeológico.
-       DPC: Criticidade ordinária para risco hidrogeológico.
-fr     Demain: Alerte jaune pour risque hydrogéologique.
-       DPC: Criticité ordinaire pour risque hydrogéologique.
-de     Morgen: Gelbe Warnung für hydrogeologisches Risiko.
-       DPC: Geringes Gefährdungspotenzial für hydrogeologisches Risiko.
-es     Mañana: Alerta amarilla por riesgo hidrogeológico.
-       DPC: Criticidad ordinaria por riesgo hidrogeológico.
+en      Tomorrow: Yellow alert for hydrogeological risk.
+        DPC: Ordinary criticality for hydrogeological risk.
+it      Domani: Allerta gialla per rischio idrogeologico.
+        DPC: Ordinaria per rischio idrogeologico.
+pt-BR   Amanhã: Alerta amarelo para risco hidrogeológico.
+        DPC: Criticidade ordinária para risco hidrogeológico.
+fr      Demain: Alerte jaune pour risque hydrogéologique.
+        DPC: Criticité ordinaire pour risque hydrogéologique.
+de      Morgen: Gelbe Warnung für hydrogeologisches Risiko.
+        DPC: Geringes Gefährdungspotenzial für hydrogeologisches Risiko.
+es      Mañana: Alerta amarilla por riesgo hidrogeológico.
+        DPC: Criticidad ordinaria por riesgo hidrogeológico.
+zh-Hans 明天: 水文地质风险黄色预警.
+        DPC: 水文地质风险一般危急程度.
+ro      Mâine: Alertă galbenă pentru risc hidrogeologic.
+        DPC: Criticitate ordinară pentru risc hidrogeologic.
+ar      غداً: إنذار أصفر — الخطر الهيدروجيولوجي.
+        DPC: خطورة عادية — الخطر الهيدروجيولوجي.
+uk      Завтра: Жовте попередження — гідрогеологічний ризик.
+        DPC: Звичайна критичність — гідрогеологічний ризик.
+sq      Nesër: Paralajmërim i verdhë për rrezik hidrogjeologjik.
+        DPC: Kritikalitet i zakonshëm për rrezik hidrogjeologjik.
+bn      আগামীকাল: হলুদ সতর্কতা — জলভূতাত্ত্বিক ঝুঁকি.
+        DPC: সাধারণ সংকটমাত্রা — জলভূতাত্ত্বিক ঝুঁকি.
+hi      कल: जल-भूवैज्ञानिक जोखिम के लिए पीली चेतावनी.
+        DPC: जल-भूवैज्ञानिक जोखिम के लिए सामान्य गंभीरता.
 ```
 
 `Translator("pt-BR")` also takes tags such as `"pt_BR"` or `"it-IT"`. See
@@ -491,7 +506,8 @@ Italian (`description`), and read into enums: `criticality` (`"Ordinaria"` is
 names, the one the DPC map shows.
 
 `aiodpc.i18n` has a text for every value in English, Italian, Brazilian
-Portuguese, French, German and Spanish; the tests check that none is missing.
+Portuguese, French, German, Spanish, Simplified Chinese, Romanian, Arabic,
+Ukrainian, Albanian, Bengali and Hindi; the tests check that none is missing.
 A `Translator` tells them in one language:
 
 - `tell(value)`: the label of any value, e.g. `tell(AlertLevel.YELLOW)` is

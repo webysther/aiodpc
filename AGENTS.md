@@ -123,10 +123,13 @@ The coverage gate is 95% with branches; keep it at 100%.
 
 - Every value of the models is an enum, and every enum has a text in every
   `Language`: `tests/test_i18n.py` fails on a missing one. A new enum or member
-  needs its text in the six languages, and its table in `Translation`.
+  needs its text in every language, and its table in `Translation`.
 - The Italian texts are those DPC writes (its legends, `"Ordinaria"`,
-  `"Deboli"`); the other languages follow the translations of DPC Alert, so
-  that the library and the integration say the same.
+  `"Deboli"`). DPC Alert takes its texts from here, so that the library and
+  the integration say the same.
+- A template whose language declines nouns after a preposition joins the
+  level and the risk with a dash ("Жовте попередження — гідрогеологічний
+  ризик"), since the risk types are in the nominative.
 - Risk types are written as within a sentence ("hydrogeological risk");
   every other text as a label. The templates hold the grammar of a language.
 - A DPC text aiodpc does not recognise is returned as it is, never dropped.

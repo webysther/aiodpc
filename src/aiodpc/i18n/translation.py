@@ -28,6 +28,13 @@ class Language(StrEnum):
     FRENCH = "fr"
     GERMAN = "de"
     SPANISH = "es"
+    SIMPLIFIED_CHINESE = "zh-Hans"
+    ROMANIAN = "ro"
+    ARABIC = "ar"
+    UKRAINIAN = "uk"
+    ALBANIAN = "sq"
+    BENGALI = "bn"
+    HINDI = "hi"
 
     @classmethod
     def of(cls, tag: str) -> Language | None:

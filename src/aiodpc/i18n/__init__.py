@@ -30,7 +30,7 @@ from aiodpc.models import (
     RiskType,
 )
 
-from . import de, en, es, fr, it, pt_br
+from . import ar, bn, de, en, es, fr, hi, it, pt_br, ro, sq, uk, zh_hans
 from .translation import Language, Translation
 
 if TYPE_CHECKING:
@@ -56,6 +56,13 @@ TRANSLATIONS: Final[Mapping[Language, Translation]] = {
         fr.TRANSLATION,
         de.TRANSLATION,
         es.TRANSLATION,
+        zh_hans.TRANSLATION,
+        ro.TRANSLATION,
+        ar.TRANSLATION,
+        uk.TRANSLATION,
+        sq.TRANSLATION,
+        bn.TRANSLATION,
+        hi.TRANSLATION,
     )
 }
 """The translation of each language."""
