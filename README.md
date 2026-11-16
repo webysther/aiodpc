@@ -702,6 +702,18 @@ The tests never reach DPC: a local HTTPS server answers for the DPC hosts.
 `tests/fixtures/real` holds unmodified excerpts of real bulletins to guard the
 data format.
 
+The live data is watched instead: four times a day, the
+[watch workflow](https://github.com/webysther/aiodpc/blob/main/.github/workflows/watch.yml)
+reads every day of the latest bulletins and opens an issue, labeled `watch`,
+for what aiodpc does not expect: a file it cannot download or read, a format
+change, a text or a code it does not know, a name damaged by an encoding
+error, or zones the census of the study has not seen. To run it by hand:
+
+```bash
+pip install --editable ".[schema]"
+python data/watch.py   # prints the problems; --issues opens them with gh
+```
+
 To release, set `__version__` in `src/aiodpc/__init__.py`, describe the
 changes in a `## [X.Y.Z] - Unreleased` section of [CHANGELOG.md](CHANGELOG.md),
 commit, then run `./publish.sh X.Y.Z` (`--dry-run` first to preview). It

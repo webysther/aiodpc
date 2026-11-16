@@ -29,6 +29,11 @@ stay numbers; compressed, it is about the size of the CSV it replaces.
   to November 2026, DPC published 40% of the criticality previews and 5% of
   the vigilance previews blank, and replaced only some of them later, at the
   same address: ask again later rather than keep a blank one.
+- A watch of the live data in the repository (`data/watch.py`, run by a
+  workflow four times a day): it reads every day of the latest bulletins and
+  opens an issue for what aiodpc does not expect, such as a new text, a format
+  change, an encoding error or zones the census has not seen, so that a
+  change of DPC is handled before it reaches the users.
 - `data/2026-Q3` in the repository: every bulletin of the third quarter of
   2026 as JSON Lines, 1.1 MB for the 1.8 GB of GeoJSON that DPC published,
   with examples in pandas and DuckDB. `data/build.py` writes any quarter.

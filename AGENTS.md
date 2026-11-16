@@ -63,7 +63,9 @@ docs/paper/          the study as a research article (LaTeX, elsarticle) for
                      (anonymized), title-page.tex, highlights.txt, references.bib,
                      CHANGELOG.md (its revisions); built by .github/workflows/paper.yml
 data/                the bulletins of a quarter as compact JSON Lines (2026-Q3),
-                     written by data/build.py; README.md documents the format
+                     written by data/build.py; README.md documents the format;
+                     watch.py reads the latest bulletins for what aiodpc does
+                     not expect, and opens an issue for each (watch.yml)
 CITATION.cff         how to cite aiodpc and the study (author: Webysther Sperandio)
 ```
 
@@ -94,6 +96,11 @@ The coverage gate is 95% with branches; keep it at 100%.
   are realistic against those rectangles.
 - Never depend on the current date: pass `now=` or use fixed dates.
   `.today` in a test breaks the day after the fixture's date.
+- The live data is watched instead (`data/watch.py`, a few times a day): an
+  issue labeled `watch` is a change of DPC to handle here, with a fixture of
+  the real data that shows it. Close it once a release handles it; a problem
+  that is still there opens it again. A new zone set the census has not seen
+  is added to it by running `data/build.py` for its quarter.
 
 ## Documentation
 

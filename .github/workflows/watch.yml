@@ -1,0 +1,47 @@
+name: Watch
+
+# Read the latest DPC bulletins with aiodpc a few times a day, and open an issue
+# for what it does not expect: a file it cannot download or read, a format
+# change, a text or code it does not know, a name damaged by an encoding error,
+# zones the census has not seen (data/watch.py). An issue already open with the
+# same title is not opened again: close it once aiodpc handles the problem.
+
+on:
+  schedule:
+    # 07:30, 15:30, 17:30 and 21:30 UTC. DPC publishes the vigilance bulletin
+    # by 15:00 and the criticality bulletin by 16:00, Italian time (14:00 and
+    # 15:00 UTC in winter), and sometimes updates them later the same day.
+    - cron: "30 7,15,17,21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Watch the latest bulletins
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install the package with the strict DTOs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --editable ".[schema]"
+
+      - name: Read the bulletins, and open an issue for each problem
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python data/watch.py --issues
