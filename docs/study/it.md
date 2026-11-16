@@ -26,18 +26,20 @@ CC BY 4.0, in GeoJSON e in altri formati.
   la forma delle zone, uguale ogni giorno.
 - La stessa informazione in codici numerici occupa **13,4 kB**, **1.438 volte
   meno** (3,8 kB compressi, 2.012 volte meno del GeoJSON compresso). Le forme
-  e i comuni vanno in un riferimento pubblicato solo quando cambiano: cinque
-  volte nei sei anni misurati.
+  e i comuni vanno in un riferimento pubblicato solo quando cambiano: le forme
+  sono cambiate in 8 dei 2.571 bollettini misurati dal 2020, e il riferimento
+  avrebbe avuto 15 versioni.
 - Ogni valore dei bollettini appartiene a un piccolo insieme chiuso. In 2.572
   bollettini dal 2020, i testi in italiano sono quattro criticità e tre rischi,
   e ogni criticità ha sempre lo stesso livello di allerta. Possono diventare
   codici numerici, che qualsiasi applicazione può esprimere in qualsiasi
   lingua.
-- I file hanno difetti che un modello a codici evita: caratteri persi per un
-  errore di codifica in ogni file, il nome di una zona troncato a 150 byte,
-  elenchi di comuni che ripetono i nomi fino a 62 volte (dal 2020 al 2024),
-  due grafie degli stessi campi, zone rinominate senza un identificativo
-  stabile, e coordinate con 15 decimali dove 6 bastano.
+- I file hanno difetti che un modello a codici evita: caratteri persi per
+  errori di codifica in ogni file, il nome di una zona troncato a 150 byte,
+  elenchi di comuni cresciuti a ogni bollettino fino a 748.705 nomi ripetuti,
+  bollettini senza comuni, due grafie degli stessi campi, zone rinominate
+  senza un identificativo stabile, e coordinate con 15 decimali dove 6
+  bastano.
 
 La proposta: mantenere i file attuali e pubblicare accanto a essi un
 riferimento delle zone con versioni (con codici stabili e i codici ISTAT dei
@@ -76,8 +78,14 @@ della pubblica amministrazione italiana (Vetrò et al., 2016).
 
 ### 1.3 Dati e campionamento
 
-- **Censimento**: il file di riepilogo di ogni bollettino di criticità
-  pubblicato dal 1° gennaio 2020 al 15 novembre 2026, 2.572 in tutto.
+- **Censimento dei riepiloghi**: il file di riepilogo di ogni bollettino di
+  criticità pubblicato dal 1° gennaio 2020 al 15 novembre 2026, 2.572 in
+  tutto.
+- **Censimento delle zone**: il file GeoJSON di criticità del giorno di
+  ciascuno di quei bollettini, 2.571 file e 15,2 GB (un bollettino non ne ha).
+  Ogni file è letto mentre viene scaricato e non è conservato: ne restano, per
+  ogni zona, un'impronta (SHA-256) della sua forma e del suo insieme di
+  comuni, e per ogni file il numero dei suoi nomi danneggiati e ripetuti.
 - **Campione ragionato**: 73 file GeoJSON di criticità (12.250 zone-giorno),
   estratti a caso (seme 7) all'interno di tre strati di giorni di bollettino
   scelti per la varietà dei loro testi: con allerta rossa, con allerta
@@ -111,7 +119,9 @@ pip install --editable . --group docs
 python docs/study/measure.py CACHE_DIR
 ```
 
-Scarica circa 450 MB in `CACHE_DIR` e restituisce gli stessi numeri, tranne le
+Scarica circa 450 MB in `CACHE_DIR`, legge altri 15,2 GB per il censimento
+delle zone conservandone solo le impronte, e restituisce gli stessi
+numeri, tranne le
 dimensioni dei repository, che crescono ogni giorno, e i tempi di lettura, che
 dipendono dalla macchina.
 
@@ -174,23 +184,39 @@ forme della criticità sono più leggere del 44,4% e le forme di un giorno del
 
 ## 4. Le zone cambiano di rado
 
-![Zone di allerta nel campione](figures/it-zones.png)
+![Zone di allerta di ogni bollettino](figures/it-zones.png)
 
-- **Le forme sono le stesse da un bollettino all'altro.** Confrontando ogni
-  zona con la stessa zona nel file precedente del campione, la forma è
-  identica byte per byte in 11.684 confronti su 12.041 (97,0%). Gli altri 357
-  cadono in cinque momenti: 2021-04 (14 zone), 2021-07 (13), 2023-05 (166 zone
-  su 170), 2026-01 (16) e 2026-08 (148 su 187). Ognuno è datato dal primo file
-  del campione che lo mostra: il cambiamento del 2026-01 è avvenuto tra il
-  9 novembre 2025 e il 18 gennaio 2026.
-- **L'insieme delle zone è cambiato quattro volte:** da 158 zone a 168 nel
-  2021-04 (18 aggiunte, 8 tolte), a 170 nel 2021-07, quattro zone rinominate
-  nel 2023-05, e 187 zone nel 2026-08 (26 aggiunte, 9 tolte).
+Il censimento confronta le zone di ogni bollettino con quelle del precedente,
+dal 1° gennaio 2020 al 15 novembre 2026.
+
+- **Le forme sono le stesse da un bollettino all'altro.** Su 435.235
+  confronti di una zona con la stessa zona nel bollettino precedente, 434.860
+  (99,9%) trovano la stessa forma. Le forme sono cambiate in modo duraturo in
+  8 bollettini: 10 febbraio 2020 (6 zone), 10 dicembre 2020 (8), 26 aprile
+  2021 (14), 15 maggio 2021 (13), 23 maggio 2023 (20), 26 maggio 2023 (146 su
+  170), 20 novembre 2025 (16) e 1° giugno 2026 (148 delle 161 zone rimaste).
+- **L'insieme delle zone è cambiato cinque volte:** "Roma" è diventata
+  "Bacini di Roma" il 10 febbraio 2020; le 158 zone sono diventate 168 l'11
+  dicembre 2020 (18 aggiunte, 8 tolte, il giorno dopo che le 8 zone tolte
+  avevano cambiato forma), e 170 il 15 maggio 2021 (3 aggiunte, 1 tolta);
+  quattro zone sono state rinominate il 23 maggio 2023; e dal 1° giugno 2026
+  le zone sono 187 (26 aggiunte, 9 tolte).
 - **Le zone vengono rinominate senza un identificativo stabile.** "Nodo
   idraulico di Milano" è diventato "Nodo Idraulico di Milano" (una maiuscola)
-  nel 2021-07; "Pianura bolognese di Reno e suoi affluenti" è diventato
-  "Pianura bolognese" nel 2023-05. Confrontare le zone per nome tra bollettini
-  diversi non funziona più a ogni cambiamento.
+  il 15 maggio 2021; "Pianura bolognese di Reno e suoi affluenti" è diventato
+  "Pianura bolognese" il 23 maggio 2023. Confrontare le zone per nome tra
+  bollettini diversi non funziona più a ogni cambiamento.
+- **Un riferimento delle zone avrebbe avuto 15 versioni.** Contando ogni
+  cambiamento dei nomi, delle forme e degli insiemi di comuni, le zone dei
+  2.571 bollettini si presentano in 15 versioni. Uno dei 14 cambiamenti è
+  soltanto l'errore di codifica della sezione 6 che raggiunge i nomi dei
+  comuni (8 maggio 2024).
+- **Alcuni bollettini si guastano, e il successivo li ripara.** L'11 maggio
+  2023 due zone della Sicilia hanno cambiato forma per un solo bollettino e
+  sono tornate come prima il giorno dopo; sei bollettini non elencano nessun
+  comune (sezione 6). Un cambiamento che il bollettino successivo annulla è
+  contato come un difetto di quel bollettino, non come una versione delle
+  zone.
 
 Pubblicare le forme ogni giorno invia di nuovo gli stessi 5,3 MB di forme
 della criticità e 2,6 MB di forme della vigilanza: 18,3 dei 19,3 MB di un
@@ -228,20 +254,19 @@ Le caratteristiche sono quelle della ISO/IEC 25012 (sezione 1.2).
 
 | Caratteristica | Difetto | Misura |
 |---|---|---|
-| Accuratezza | Caratteri persi per un errore di codifica | "Valle d?Aosta" (Valle d’Aosta) in tutti i 73 file del campione; "Savogna d'Isonzo-Sovodnje ob So?i" (Soči) in 19. Segnalato sul repository del DPC nel 2024 ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)), con lo stesso "d?Aosta" in un commento di ottobre 2026 |
-| Accuratezza | Il nome di una zona troncato | Dal 2026-08, "…Valle di Champorcher e Valle di Gressoney" è "…Valle di Gresso": 146 caratteri, esattamente 150 byte con i suoi due apostrofi tipografici, il che fa pensare a un campo di 150 byte |
-| Coerenza | Comuni ripetuti | 21 dei 73 file del campione, dal 2020 a febbraio 2024, ripetono i nomi fino a 62 volte: 4.671.290 voci per 598.107 comuni. Un file del 2020 elenca 205.375 nomi per 8.215 comuni. I file del 2026 non hanno ripetizioni |
+| Accuratezza | Caratteri persi per errori di codifica | Un "?" al posto di una lettera in tutti i 2.571 bollettini: "Valle d?Aosta" (Valle d’Aosta), "Savogna d'Isonzo-Sovodnje ob So?i" (Soči). In ogni bollettino con i comuni dall'8 maggio 2024 al 19 novembre 2025 (568), anche un "�" al posto delle lettere accentate di fino a 158 comuni: "F�nis" (Fénis), "Carr�" (Carrù). Segnalato sul repository del DPC nel 2024 ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)); il bollettino del 20 novembre 2025 ha corretto i "�", non i "?", che un commento di ottobre 2026 segnala di nuovo |
+| Accuratezza | Il nome di una zona troncato | Dal 1° giugno 2026, "…Valle di Champorcher e Valle di Gressoney" è "…Valle di Gresso": 146 caratteri, esattamente 150 byte con i suoi due apostrofi tipografici, il che fa pensare a un campo di 150 byte |
+| Coerenza | Comuni ripetuti | 686 dei 2.571 bollettini ripetono i nomi. Fino ad agosto 2021 ogni bollettino aggiunge una copia di ogni elenco (da 8.182 a 8.215 nomi) a quelle del bollettino precedente, finché uno non riparte da una copia sola: il file del 31 marzo 2020 contiene 748.705 nomi ripetuti e pesa 15,9 MB, il più grande del censimento. Dal 2022 le ripetizioni tornano in bollettini isolati, da 17 a 28 l'anno fino al 2025 e 7 nel 2026, ciascuno con da una a sette copie in più degli elenchi (da 8.182 a 57.309 nomi) |
+| Completezza | Comuni mancanti | Sei bollettini non hanno `Comuni` in nessuna zona (9 aprile, 5 maggio, 11 maggio e 31 ottobre 2023, 11 marzo 2024, 26 luglio 2025); tre di maggio 2021 non li hanno in due zone |
+| Completezza | Un bollettino senza file | Il bollettino `20200929_1425` ha solo il file di stile, nessun GeoJSON per nessuno dei due giorni |
 | Coerenza | Due grafie dello stesso campo | `Nome zona` e `Comuni` nei file di criticità, `Nome_Zona` e `comuni` in quelli di vigilanza |
 | Coerenza | Due lingue nei nomi dei file | `_today`, `_tomorrow` per i file di criticità; `_oggi`, `_domani`, `_dopodomani` per quelli di vigilanza e per le immagini di anteprima di entrambi |
 | Tracciabilità | Zone senza identificativo | Le zone sono note solo per nome, e vengono rinominate (sezione 4) |
 | Accuratezza | Comuni solo per nome | Sette nomi (Peglio, Livo, Samone, Castro, San Teodoro, Calliano, Valverde) appartengono ciascuno a due comuni lontani; "Bolzano/Bozen" in un bollettino è "Bolzano" nell'altro |
-| Efficienza | Dati statici pubblicati ogni giorno | 18,3 dei 19,3 MB di un giorno sono forme che cambiano poche volte in sei anni (sezione 4) |
+| Efficienza | Dati statici pubblicati ogni giorno | 18,3 dei 19,3 MB di un giorno sono forme cambiate in 8 bollettini su 2.571 (sezione 4) |
 | Efficienza | Precisione superflua | Coordinate con 15 decimali; 6 corrispondono a circa 10 cm (sezione 3) |
 | Conformità | Una data con fuso orario | `data_bollettino` è "2026-11-15Z", non una data ISO 8601 |
 | Completezza | Un campo vuoto | `id` è vuoto in tutti i fenomeni dei file del 15 novembre 2026 |
-
-La segnalazione originale dell'issue #10 descrive anche lettere accentate
-corrotte nei nomi dei comuni; i file GeoJSON del campione non ne hanno.
 
 ## 7. La proposta
 
@@ -368,19 +393,31 @@ Secondo Wohlin et al. (2012) e Runeson e Höst (2009):
   ogni valore delle allerte e dei fenomeni: i testi in italiano non sono
   conservati come testo, ma sono un insieme chiuso (sezione 5) che i codici
   restituiscono, come verificano i test di aiodpc. Le zone sono confrontate per
-  nome, quindi una zona rinominata conta come una tolta e una aggiunta.
+  nome, quindi una zona rinominata conta come una tolta e una aggiunta. Due
+  forme sono le stesse quando lo sono le impronte del loro JSON, con le chiavi
+  ordinate: punti in un altro ordine o con altri decimali contano come un
+  cambiamento. Un cambiamento che il bollettino successivo annulla conta come
+  un difetto, non come una versione delle zone.
 - **Validità interna.** Le misure vengono da uno script, che potrebbe essere
   sbagliato. La lettura dei dati è testata (501 test, copertura completa), ogni
   numero del testo è confrontato con `results.json`, e la misura ha corretto
-  un risultato di una prima stesura: un apparente cambio di ordine degli
-  elenchi dei comuni erano in realtà i nomi ripetuti della sezione 6.
+  risultati delle prime stesure. Un apparente cambio di ordine degli elenchi
+  dei comuni erano in realtà i nomi ripetuti della sezione 6. Il censimento
+  delle zone ha poi corretto il campione: ha datato al bollettino i
+  cambiamenti che il campione collocava fino a quattro mesi e mezzo dopo, ha
+  trovato quelli di febbraio 2020, precedenti al primo file del campione, ha
+  trovato i "�" che la misura del campione non cercava, e ripetizioni nel
+  2026, in bollettini che il campione non aveva estratto. Il metodo del
+  censimento è stato prima verificato sui bollettini dal 9 novembre 2025 al
+  18 gennaio 2026, rispetto ai file del campione di quel periodo e a un
+  confronto diretto delle forme.
 - **Validità esterna.** Il campione privilegia i giorni con allerte, quindi le
   frequenze dei suoi testi non sono quelle di tutti i giorni; l'insieme chiuso
-  si basa sul censimento dei riepiloghi. Le date dei cambiamenti delle zone
-  sono precise quanto il campione. Le forme non sono state misurate su ogni
-  file (30,3 GB per i 5.140 file di criticità), la storia della vigilanza e i
-  file TopoJSON, shapefile, XML e PDF per niente. I risultati descrivono i
-  file fino al 15 novembre 2026; il DPC può cambiarli.
+  si basa sul censimento dei riepiloghi. Il censimento delle zone legge un
+  file per bollettino, quello del giorno: i file del giorno successivo, la
+  storia della vigilanza e i file TopoJSON, shapefile, XML e PDF non sono
+  stati misurati. I risultati descrivono i file fino al 15 novembre 2026; il
+  DPC può cambiarli, e può sostituire file già pubblicati.
 - **Validità delle conclusioni e affidabilità.** I risultati sono conteggi e
   dimensioni, non stime, quindi non richiedono inferenza statistica. Chiunque
   può ripeterli con lo script e gli stessi dati di ingresso (sezione 1.4); i

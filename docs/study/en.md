@@ -26,16 +26,18 @@ are published as open data, under CC BY 4.0, in GeoJSON and other formats.
 - The same information as numeric codes is **13.4 kB**, **1,438 times
   smaller** (3.8 kB compressed, 2,012 times smaller than the compressed
   GeoJSON). The shapes and the municipalities go in a reference published only
-  when they change: five times in the six years measured.
+  when they change: the shapes changed in 8 of the 2,571 bulletins measured
+  since 2020, and the reference would have had 15 versions.
 - Every value of the bulletins belongs to a small closed set. Over 2,572
   bulletins since 2020, the Italian texts are four criticalities and three
   risks, each criticality always with the same alert level. They can be
   numeric codes, which any application can tell in any language.
-- The files have defects that a model with codes avoids: characters lost by an
-  encoding error in every file, a zone name cut at 150 bytes, municipality
-  lists repeating names up to 62 times (2020 to 2024), two spellings of the
-  same fields, zones renamed without an identifier that stays, and
-  coordinates with 15 decimals where 6 are enough.
+- The files have defects that a model with codes avoids: characters lost by
+  encoding errors in every file, a zone name cut at 150 bytes, municipality
+  lists that grew with each bulletin up to 748,705 repeated names, bulletins
+  without municipalities, two spellings of the same fields, zones renamed
+  without an identifier that stays, and coordinates with 15 decimals where 6
+  are enough.
 
 The proposal: keep the current files, and publish next to them a versioned
 reference of the zones (with stable codes and the ISTAT codes of the
@@ -74,8 +76,14 @@ Italian open government data (Vetrò et al., 2016).
 
 ### 1.3 Data and sampling
 
-- **Census**: the summary file of every criticality bulletin published from
-  1 January 2020 to 15 November 2026, 2,572 in all.
+- **Census of the summaries**: the summary file of every criticality
+  bulletin published from 1 January 2020 to 15 November 2026, 2,572 in all.
+- **Census of the zones**: the criticality GeoJSON file of the day of every
+  one of those bulletins, 2,571 files and 15.2 GB (one bulletin has none).
+  Each file is read as it is downloaded and not kept: what remains is, for
+  each zone, a digest (SHA-256) of its shape and of its set of
+  municipalities, and for each file the count of its damaged and repeated
+  names.
 - **Purposive sample**: 73 criticality GeoJSON files (12,250 zone-days),
   drawn at random (seed 7) within three strata of bulletin days chosen for the
   variety of their texts: with a red alert, with an orange alert, with several
@@ -110,7 +118,9 @@ pip install --editable . --group docs
 python docs/study/measure.py CACHE_DIR
 ```
 
-It downloads about 450 MB into `CACHE_DIR` and gives the same numbers, except
+It downloads about 450 MB into `CACHE_DIR`, reads 15.2 GB more for the
+census of the zones while keeping only their digests, and gives the
+same numbers, except
 the sizes of the repositories, which grow every day, and the reading times,
 which depend on the machine.
 
@@ -172,22 +182,37 @@ vigilance up to 8. The GeoJSON specification notes that 6 decimals are about
 
 ## 4. The zones rarely change
 
-![Alert zones in the sampled bulletins](figures/en-zones.png)
+![Alert zones of every bulletin](figures/en-zones.png)
 
-- **The shapes are the same from one bulletin to the next.** Comparing each
-  zone with the same zone in the previous sampled file, the shape is
-  byte-identical in 11,684 of 12,041 comparisons (97.0%). The 357 others
-  happen at five moments: in 2021-04 (14 zones), 2021-07 (13), 2023-05 (166
-  of 170 zones), 2026-01 (16) and 2026-08 (148 of 187). Each is dated by the
-  first sampled file that shows it: the 2026-01 change happened between
-  9 November 2025 and 18 January 2026.
-- **The set of zones changed four times:** from 158 zones to 168 in 2021-04
-  (18 added, 8 removed), to 170 in 2021-07, four zones renamed in 2023-05, and
-  187 zones in 2026-08 (26 added, 9 removed).
+The census compares the zones of each bulletin with those of the previous
+one, from 1 January 2020 to 15 November 2026.
+
+- **The shapes are the same from one bulletin to the next.** Of 435,235
+  comparisons of a zone with the same zone in the previous bulletin, 434,860
+  (99.9%) find the same shape. The shapes changed for good in 8 bulletins:
+  10 February 2020 (6 zones), 10 December 2020 (8), 26 April 2021 (14),
+  15 May 2021 (13), 23 May 2023 (20), 26 May 2023 (146 of 170),
+  20 November 2025 (16) and 1 June 2026 (148 of the 161 zones that stayed).
+- **The set of zones changed five times:** "Roma" became "Bacini di Roma" on
+  10 February 2020; 158 zones became 168 on 11 December 2020 (18 added, 8
+  removed, the day after the 8 removed zones had changed shape), and 170 on
+  15 May 2021 (3 added, 1 removed); four zones were renamed on 23 May 2023;
+  and there are 187 zones since 1 June 2026 (26 added, 9 removed).
 - **Zones are renamed without an identifier that stays.** "Nodo idraulico di
-  Milano" became "Nodo Idraulico di Milano" (a capital letter) in 2021-07;
-  "Pianura bolognese di Reno e suoi affluenti" became "Pianura bolognese" in
-  2023-05. Matching zones by name across bulletins breaks at each change.
+  Milano" became "Nodo Idraulico di Milano" (a capital letter) on 15 May
+  2021; "Pianura bolognese di Reno e suoi affluenti" became "Pianura
+  bolognese" on 23 May 2023. Matching zones by name across bulletins breaks
+  at each change.
+- **A reference of the zones would have had 15 versions.** Counting every
+  change of the names, the shapes and the sets of municipalities, the zones
+  of the 2,571 bulletins come in 15 versions. One of the 14 changes is only
+  the encoding error of section 6 reaching the municipality names (8 May
+  2024).
+- **Some bulletins break, and the next one repairs them.** On 11 May 2023
+  two zones of Sicily changed shape for one bulletin and were back the next
+  day; six bulletins list no municipalities at all (section 6). A change that
+  the next bulletin undoes is counted as a defect of that bulletin, not as a
+  version of the zones.
 
 Publishing the shapes every day sends the same 5.3 MB of criticality shapes
 and 2.6 MB of vigilance shapes again and again: 18.3 of the 19.3 MB of a
@@ -223,20 +248,19 @@ The characteristics are those of ISO/IEC 25012 (section 1.2).
 
 | Characteristic | Defect | Measured |
 |---|---|---|
-| Accuracy | Characters lost by an encoding error | "Valle d?Aosta" (Valle d’Aosta) in every one of the 73 sampled files; "Savogna d'Isonzo-Sovodnje ob So?i" (Soči) in 19. Reported on the DPC repository in 2024 ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)), with the same "d?Aosta" in a comment of October 2026 |
-| Accuracy | A zone name cut short | Since 2026-08, "…Valle di Champorcher e Valle di Gressoney" is "…Valle di Gresso": 146 characters, exactly 150 bytes with its two typographic apostrophes, which suggests a 150-byte field |
-| Consistency | Municipalities repeated | 21 of the 73 sampled files, from 2020 to February 2024, repeat names up to 62 times: 4,671,290 entries for 598,107 municipalities. A 2020 file lists 205,375 names for 8,215 municipalities. The files of 2026 have no repeats |
+| Accuracy | Characters lost by encoding errors | A "?" in place of a letter in every one of the 2,571 bulletins: "Valle d?Aosta" (Valle d’Aosta), "Savogna d'Isonzo-Sovodnje ob So?i" (Soči). In every bulletin with municipalities from 8 May 2024 to 19 November 2025 (568), also a "�" in place of the accented letters of up to 158 municipalities: "F�nis" (Fénis), "Carr�" (Carrù). Reported on the DPC repository in 2024 ([issue #10](https://github.com/pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica/issues/10)); the bulletin of 20 November 2025 fixed the "�", not the "?", which a comment of October 2026 reports again |
+| Accuracy | A zone name cut short | Since 1 June 2026, "…Valle di Champorcher e Valle di Gressoney" is "…Valle di Gresso": 146 characters, exactly 150 bytes with its two typographic apostrophes, which suggests a 150-byte field |
+| Consistency | Municipalities repeated | 686 of the 2,571 bulletins repeat names. Until August 2021 each bulletin adds one more copy of every list (8,182 to 8,215 names) to those of the previous bulletin, until one starts again from a single copy: the file of 31 March 2020 holds 748,705 repeated names and weighs 15.9 MB, the largest of the census. Since 2022 the repeats come back in isolated bulletins, 17 to 28 a year until 2025 and 7 in 2026, each with one to seven extra copies of the lists (8,182 to 57,309 names) |
+| Completeness | Municipalities missing | Six bulletins have no `Comuni` in any zone (9 April, 5 May, 11 May and 31 October 2023, 11 March 2024, 26 July 2025); three of May 2021 lack them in two zones |
+| Completeness | A bulletin without files | The bulletin `20200929_1425` has its style file only, no GeoJSON for either day |
 | Consistency | Two spellings of the same field | `Nome zona` and `Comuni` in the criticality files, `Nome_Zona` and `comuni` in the vigilance files |
 | Consistency | Two languages in the file names | `_today`, `_tomorrow` for the criticality files; `_oggi`, `_domani`, `_dopodomani` for the vigilance files and the preview images of both |
 | Traceability | Zones without an identifier | Zones are known by their name only, and renamed (section 4) |
 | Accuracy | Municipalities by name only | Seven names (Peglio, Livo, Samone, Castro, San Teodoro, Calliano, Valverde) each belong to two municipalities far apart; "Bolzano/Bozen" in one bulletin is "Bolzano" in the other |
-| Efficiency | Static data published daily | 18.3 of the 19.3 MB of a day are shapes that change a few times in six years (section 4) |
+| Efficiency | Static data published daily | 18.3 of the 19.3 MB of a day are shapes that changed in 8 of 2,571 bulletins (section 4) |
 | Efficiency | Needless precision | Coordinates with 15 decimals; 6 are about 10 cm (section 3) |
 | Compliance | A date with a time zone | `data_bollettino` is "2026-11-15Z", not an ISO 8601 date |
 | Completeness | An empty field | `id` is empty in every phenomenon of the files of 15 November 2026 |
-
-The original report of issue #10 also describes broken accented letters in
-municipality names; the sampled GeoJSON files have none.
 
 ## 7. The proposal
 
@@ -360,18 +384,29 @@ Following Wohlin et al. (2012) and Runeson and Höst (2009):
   phenomena: the Italian texts are not kept as text, but they are a closed set
   (section 5) that the codes give back, as the tests of aiodpc check. Zones
   are matched by name, so a renamed zone counts as one removed and one added.
+  Two shapes are the same when the digests of their JSON, with sorted keys,
+  are: points in another order or with other decimals count as a change. A
+  change that the next bulletin undoes counts as a defect, not as a version
+  of the zones.
 - **Internal validity.** The measures come from a script, which could be
   wrong. The parsing is tested (501 tests, full coverage), each number of the
-  text is checked against `results.json`, and the measuring changed a finding
-  of a first draft: an apparent change of order of the municipality lists was
-  in fact the repeated names of section 6.
+  text is checked against `results.json`, and the measuring changed findings
+  of first drafts. An apparent change of order of the municipality lists was
+  in fact the repeated names of section 6. The census of the zones then
+  corrected the sample: it dated to the bulletin the changes that the sample
+  placed up to four and a half months late, found those of February 2020,
+  before the first sampled file, found the "�" that the measure of the sample
+  did not look for, and found repeats in 2026, in bulletins the sample did
+  not draw. The method of the census was first checked on the bulletins of
+  9 November 2025 to 18 January 2026, against the sampled files of that
+  period and against a direct comparison of the shapes.
 - **External validity.** The sample favours days with alerts, so the
   frequencies of its texts are not those of all days; the closed set rests on
-  the census of the summaries. The dates of the changes of the zones are as
-  precise as the sample. The shapes were not measured on every file (30.3 GB
-  for the 5,140 criticality files), the vigilance history and the TopoJSON,
-  shapefile, XML and PDF files not at all. The results describe the files up
-  to 15 November 2026; DPC may change them.
+  the census of the summaries. The census of the zones reads one file per
+  bulletin, that of the day: the files of the next day, the vigilance
+  history and the TopoJSON, shapefile, XML and PDF files were not measured.
+  The results describe the files up to 15 November 2026; DPC may change
+  them, and may replace files already published.
 - **Conclusion validity and reliability.** The results are counts and sizes,
   not estimates, so they need no statistical inference. Anyone can repeat
   them with the script and the same inputs (section 1.4); the reading times
