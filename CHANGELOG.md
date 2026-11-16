@@ -5,7 +5,7 @@ All notable changes to aiodpc. The format follows
 [Semantic Versioning](https://semver.org/): before 1.0, a minor version may
 change the API.
 
-## [0.9.0] - Unreleased
+## [0.9.0] - 2026-11-16
 
 The compact bulletins are JSON only: one document per bulletin, on a single
 line, so the bulletins of a period are a JSON Lines file. The JSON document
