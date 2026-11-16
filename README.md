@@ -33,7 +33,7 @@ its volunteers and guests the day before an alert. The same steps serve a
 school, a sports club, a parish, a farm or a town hall.
 
 Every example is a complete script: copy, paste and run it. The outputs shown
-are real, from the bulletins of 15 November 2026.
+are real, run on the afternoon of 15 November 2026.
 
 The [tutorial notebook](https://github.com/webysther/aiodpc/blob/main/examples/tutorial.ipynb)
 tells the same story with the maps of the alerts and the weather phenomena,
@@ -67,19 +67,24 @@ False
 
 A yes needs more: which level, which risk and until when. The bulletin is
 published in the afternoon and also covers tomorrow, which leaves time to warn
-people.
+people. From midnight until the next bulletin, tomorrow is not published yet:
+`risk()` then raises `DpcNoDataError`.
 
 ```python
 import asyncio
 
-from aiodpc import Day, DpcClient
+from aiodpc import Day, DpcClient, DpcNoDataError
 
 
 async def main() -> None:
     async with DpcClient() as dpc:
         rome = dpc.location(41.9, 12.5)
         for day in (Day.TODAY, Day.TOMORROW):
-            risk = await rome.risk(day)
+            try:
+                risk = await rome.risk(day)
+            except DpcNoDataError:  # after midnight, until DPC publishes
+                print(f"{day.date()}: not published yet")
+                continue
             print(f"{day.date()}: {risk}")
             print(f"  DPC says: {risk.description}")
             print(f"  valid until {risk.valid_until:%Y-%m-%d %H:%M}")
@@ -206,6 +211,9 @@ async def main() -> None:
         except DpcLocationError:
             print(f"{city:<9} not covered by DPC")
             continue
+        if tomorrow is None:  # after midnight, until DPC publishes
+            print(f"{city:<9} not published yet")
+            continue
         notice = "send a notice" if tomorrow.is_alert else "-"
         print(f"{city:<9} {tomorrow.level:<7} {notice:<14} {tomorrow.zone}")
 
@@ -282,7 +290,7 @@ and writes the notice to share as soon as DPC announces an alert for tomorrow.
 ```python
 import asyncio
 
-from aiodpc import Day, DpcClient
+from aiodpc import Day, DpcClient, DpcNoDataError
 
 CHECK_EVERY_SECONDS = 30 * 60
 
@@ -292,8 +300,11 @@ async def main() -> None:
         rome = dpc.location(41.9, 12.5, municipality="Roma")
         announced = None
         while True:
-            risk = await rome.risk(Day.TOMORROW)
-            if risk.is_alert and risk.day != announced:
+            try:
+                risk = await rome.risk(Day.TOMORROW)
+            except DpcNoDataError:  # after midnight, until DPC publishes
+                risk = None
+            if risk is not None and risk.is_alert and risk.day != announced:
                 announced = risk.day
                 print(
                     f"Notice for {risk.day.date:%A %d %B}: {risk.level} alert "
@@ -326,13 +337,17 @@ written in each of them, the DPC description included.
 ```python
 import asyncio
 
-from aiodpc import Day, DpcClient, Language, Translator
+from aiodpc import Day, DpcClient, DpcNoDataError, Language, Translator
 
 
 async def main() -> None:
     async with DpcClient() as dpc:
         rome = dpc.location(41.9, 12.5, municipality="Roma")
-        risk = await rome.risk(Day.TOMORROW)
+        try:
+            risk = await rome.risk(Day.TOMORROW)
+        except DpcNoDataError:  # after midnight, until DPC publishes
+            print("Tomorrow is not published yet")
+            return
 
     for language in Language:
         tell = Translator(language)
@@ -497,6 +512,74 @@ aiodpc does not speak it; `aiodpc.i18n.TRANSLATIONS` holds every text.
 The [data dictionary](https://github.com/webysther/aiodpc/blob/main/docs/data-dictionary.xlsx)
 lists every field of the DPC files and every value they take, with a numeric
 code, the text DPC writes and its translations, as a proposal of data model.
+
+### Numeric codes and compact bulletins
+
+Every value has a numeric `code`, and `from_code()` gives it back:
+`AlertLevel.YELLOW.code` is 2, `RiskType.from_code(3)` is
+`RiskType.HYDROGEOLOGICAL`. Where DPC publishes a code it is that code
+(`id_fenomeno` for `PhenomenonType`, `id_classificazione` for
+`Precipitation`); the others are aiodpc's, listed in the
+[data dictionary](https://github.com/webysther/aiodpc/blob/main/docs/data-dictionary.xlsx).
+Codes never change once released.
+
+`CriticalityMap.compact()` and `VigilanceMap.compact()` give a whole bulletin
+as numbers: one record of codes per zone and day, and the zones in a table of
+their own (`ZoneTable`), coded by their position in name order. The zones are
+almost all the bytes of the DPC files and change rarely; the table's
+`fingerprint` changes when they do, so a consumer keeps the table and fetches
+it again only then. `to_csv()` and `to_json()` write the records,
+`phenomena_csv()` the phenomena, and the zone table has `to_csv()`,
+`to_json()` and `to_geojson()` (the shapes, to publish once per fingerprint).
+
+```python
+import asyncio
+
+from aiodpc import AlertLevel, DpcClient, RiskType, Translator
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        criticality = (await dpc.get_criticality_map()).compact()
+        vigilance = (await dpc.get_vigilance_map()).compact()
+
+    documents = {
+        "criticality": criticality.to_csv(),
+        "vigilance": vigilance.to_csv(),
+        "phenomena": vigilance.phenomena_csv(),
+        "zones": criticality.zones.to_json(),
+    }
+    for name, text in documents.items():
+        print(f"{name:<12} {len(text.encode()):>7,} bytes")
+    print(criticality.to_csv().splitlines()[0])
+
+    # The codes give the values back, in any language
+    tell = Translator("pt-BR")
+    rome = criticality.zones.code_of("Bacini di Roma")
+    for record in criticality.records:
+        if record.zone == rome:
+            risk = RiskType.from_code(record.mapped_risk)
+            print(record, tell(AlertLevel(record.level)), risk and tell(risk))
+
+
+asyncio.run(main())
+```
+
+Run on 16 November 2026, when the criticality bulletin of the day before
+still covered its second day:
+
+```text
+criticality    3,337 bytes
+vigilance        999 bytes
+phenomena      3,962 bytes
+zones        123,624 bytes
+day,zone,level,criticality,mapped_risk,hydraulic,thunderstorms,hydrogeological
+CriticalityRecord(day=1, zone=30, level=2, criticality=2, mapped_risk=3, hydraulic=1, thunderstorms=1, hydrogeological=2) Alerta amarelo Risco hidrogeológico
+```
+
+A full day of both bulletins is about 13 kB of CSV instead of 19 MB of
+GeoJSON. The [study](https://github.com/webysther/aiodpc/blob/main/docs/study/en.md)
+measures it and proposes this model to DPC.
 
 ### Low-level API
 

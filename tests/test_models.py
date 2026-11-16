@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+from typing import TYPE_CHECKING
 
 import pytest
 
 from aiodpc import (
     ROME_TZ,
     AlertLevel,
+    BulletinKind,
     CompassPoint,
+    Criticality,
     CriticalityBulletin,
     CriticalityDay,
     Day,
@@ -30,6 +33,9 @@ from aiodpc.models import PHENOMENON_TYPE_CODES
 from aiodpc.parsers import PHENOMENON_TYPES, end_of_day
 
 from . import rome
+
+if TYPE_CHECKING:
+    from enum import Enum
 
 NO_PHENOMENA = "Assenza di fenomeni significativi prevedibili"
 
@@ -373,3 +379,40 @@ def test_models_are_hashable_and_convertible() -> None:
     assert dataclasses.asdict(day)["hydraulic"]["level"] is AlertLevel.GREEN
     with pytest.raises(dataclasses.FrozenInstanceError):
         day.zone = "Altro"  # type: ignore[misc]
+
+
+CODED: tuple[type[Enum], ...] = (
+    AlertLevel,
+    BulletinKind,
+    CompassPoint,
+    Criticality,
+    Day,
+    PhenomenonCategory,
+    PhenomenonType,
+    Precipitation,
+    RiskType,
+)
+
+
+@pytest.mark.parametrize("enum", CODED)
+def test_codes(enum: type[Enum]) -> None:
+    """Every value has its own numeric code, and the code gives the value back."""
+    codes = [member.code for member in enum]  # type: ignore[attr-defined] # every enum of CODED has codes
+    assert len(set(codes)) == len(codes)
+    for member in enum:
+        assert enum.from_code(member.code) is member  # type: ignore[attr-defined] # as above
+    assert enum.from_code(-1) is None  # type: ignore[attr-defined] # as above
+
+
+def test_codes_of_dpc() -> None:
+    """The codes DPC publishes are the codes of the values."""
+    for code, (category, _legend) in PHENOMENON_TYPES.items():
+        phenomenon_type = PhenomenonType.of(code)
+        assert phenomenon_type is not None
+        assert phenomenon_type.code == code
+        assert PhenomenonType.from_code(code) is phenomenon_type
+        assert category.code == code // 10
+    assert [level.code for level in Precipitation] == [0, 1, 2, 3, 4, 5]
+    assert [point.code for point in CompassPoint][:5] == [0, 1, 2, 3, 4]
+    assert CompassPoint.from_code(12) is CompassPoint.W
+    assert Day.from_code(1) is Day.TOMORROW

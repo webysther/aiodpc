@@ -39,7 +39,8 @@ src/aiodpc/
   client.py          DpcClient: bulletins of a location, maps, get_alert_zone(),
                      is_location_covered(), raw files
   maps.py            CriticalityMap, VigilanceMap: one download, .at(location)
-                     for any number of places, without I/O
+                     for any number of places, without I/O; .compact()
+  compact.py         a whole bulletin as numeric codes and a zone table
   parsers.py         pure parsing of the decoded GeoJSON, without I/O
   models.py          frozen dataclasses and enums; exceptions.py
   discovery.py       the latest bulletin ID, from the DPC map pages
@@ -54,11 +55,13 @@ examples/            tutorial.ipynb, the README tutorial with maps, saved with i
                      outputs; it writes alert-map.png, the map of the README
 docs/                data_dictionary.py writes data-dictionary.xlsx, the DPC data
                      model with numeric codes, from the tables of aiodpc
+docs/study/          the study of the DPC data (en.md, it.md) and measure.py,
+                     which makes every number it cites (results.json, figures)
 ```
 
 The public API is what `aiodpc/__init__.py` exports in `__all__`, plus the
 documented modules: `parsers`, `urls`, `geo`, `municipalities`, `discovery`,
-`schema`, `i18n`.
+`schema`, `i18n`, `compact`.
 
 ## Checks
 
@@ -110,6 +113,11 @@ The coverage gate is 95% with branches; keep it at 100%.
   `TRANSLATIONS`; the tests list what is missing.
 - After changing a table, write the data dictionary again
   (`python docs/data_dictionary.py`).
+- Every value has a numeric `code` and `from_code()`. A released code never
+  changes and is never reused: a new value gets a new code. The codes DPC
+  publishes (`id_fenomeno`, `id_classificazione`) are kept as they are.
+- The columns of the compact records are a format: a change of column needs
+  a new `compact.SCHEMA_VERSION`.
 
 ## DPC data
 

@@ -99,8 +99,9 @@ async def test_location_outside_does_not_affect_the_others(
         criticality.at(PARIS)
     with pytest.raises(DpcLocationError):
         vigilance.at(PARIS)
-    assert criticality.at(ROME).today is not None
-    assert vigilance.at(ROME).today is not None
+    # By date, not .today: the fixtures are of a fixed day
+    assert criticality.at(ROME).on(PUBLICATION_DAY.date()) is not None
+    assert vigilance.at(ROME).on(PUBLICATION_DAY.date()) is not None
 
 
 async def test_map_skips_expired_days(client: DpcClient, dpc: FakeDpc) -> None:

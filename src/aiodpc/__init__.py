@@ -6,6 +6,7 @@ vigilance and phenomena) published by DPC as open data.
 """
 
 from .client import DpcClient
+from .compact import CompactCriticality, CompactVigilance
 from .const import (
     ATTRIBUTION,
     CRITICALITY_PAGE_URL,
@@ -60,6 +61,8 @@ __all__ = [
     "AlertZone",
     "BulletinIdSource",
     "BulletinKind",
+    "CompactCriticality",
+    "CompactVigilance",
     "CompassPoint",
     "Criticality",
     "CriticalityBulletin",

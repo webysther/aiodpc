@@ -9,6 +9,8 @@ from .models import CriticalityBulletin, VigilanceBulletin
 from .parsers import (
     GeoJsonFeatures,
     check_phenomena_distance,
+    compact_criticality,
+    compact_vigilance,
     parse_criticality_day,
     parse_criticality_id,
     parse_phenomena,
@@ -20,6 +22,7 @@ if TYPE_CHECKING:
     import datetime as dt
     from collections.abc import Iterable
 
+    from .compact import CompactCriticality, CompactVigilance
     from .models import Location
 
 
@@ -66,6 +69,14 @@ class CriticalityMap:
             for offset, features in self._days
         )
         return CriticalityBulletin(id=self.id, published=self.published, days=days)
+
+    def compact(self) -> CompactCriticality:
+        """Return the bulletin of every zone as numeric codes.
+
+        About 7 kB of CSV for two days, instead of 11 MB of GeoJSON; see
+        :mod:`aiodpc.compact`.
+        """
+        return compact_criticality(self.id, self._days)
 
     def __repr__(self) -> str:
         """Return the representation of the map."""
@@ -133,6 +144,13 @@ class VigilanceMap:
             for offset, zones, phenomena in self._days
         )
         return VigilanceBulletin(id=self.id, date=self.date, days=days)
+
+    def compact(self) -> CompactVigilance:
+        """Return the precipitation of every zone and every phenomenon as codes.
+
+        See :mod:`aiodpc.compact`.
+        """
+        return compact_vigilance(self.id, self._days)
 
     def __repr__(self) -> str:
         """Return the representation of the map."""

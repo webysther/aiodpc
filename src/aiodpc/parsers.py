@@ -14,6 +14,15 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, NamedTuple
 
+from .compact import (
+    COORDINATE_DECIMALS,
+    CompactCriticality,
+    CompactVigilance,
+    CriticalityRecord,
+    PhenomenonRecord,
+    VigilanceRecord,
+    ZoneTable,
+)
 from .const import ROME_TZ
 from .exceptions import DpcLocationError, DpcParseError
 from .geo import (
@@ -25,6 +34,7 @@ from .geo import (
 from .models import (
     AlertLevel,
     AlertZone,
+    Criticality,
     CriticalityDay,
     Location,
     Phenomenon,
@@ -579,3 +589,97 @@ def parse_phenomena(
             )
         )
     return tuple(phenomena)
+
+
+def compact_criticality(
+    bulletin_id: str, days: Iterable[tuple[int, object]]
+) -> CompactCriticality:
+    """Return the criticality bulletin of Italy as numeric codes.
+
+    ``days`` holds the offset of each day and its decoded GeoJSON (or
+    :class:`GeoJsonFeatures`). Every zone of every day is a record; the
+    zones of all the days make the zone table. See :mod:`aiodpc.compact`.
+    """
+    files = [(offset, _features(geojson)) for offset, geojson in days]
+    zones = ZoneTable.of(
+        (
+            _zone_name(feature.properties),
+            _municipalities(feature.properties),
+            feature.geometry,
+        )
+        for _offset, features in files
+        for feature in features
+    )
+    records = []
+    for offset, features in files:
+        for feature in features:
+            properties = feature.properties
+            summary = parse_assessment(properties.get(SUMMARY_PROPERTY))
+            mapped_risk = RiskType.named_in(summary.description)
+            hydraulic, thunderstorms, hydrogeological = (
+                parse_assessment(properties.get(RISK_PROPERTIES[risk_type])).level.code
+                for risk_type in RiskType
+            )
+            records.append(
+                CriticalityRecord(
+                    day=offset,
+                    zone=zones.code_of(_zone_name(properties)),
+                    level=summary.level.code,
+                    criticality=Criticality.of(summary.description).code,
+                    mapped_risk=0 if mapped_risk is None else mapped_risk.code,
+                    hydraulic=hydraulic,
+                    thunderstorms=thunderstorms,
+                    hydrogeological=hydrogeological,
+                )
+            )
+    return CompactCriticality(bulletin_id, zones, tuple(records))
+
+
+def compact_vigilance(
+    bulletin_id: str, days: Iterable[tuple[int, object, object]]
+) -> CompactVigilance:
+    """Return the weather vigilance bulletin of Italy as numeric codes.
+
+    ``days`` holds the offset of each day, the decoded GeoJSON of its zones
+    and that of its phenomena (or their :class:`GeoJsonFeatures`). Phenomena
+    without a code or a position are left out. See :mod:`aiodpc.compact`.
+    """
+    files = [
+        (offset, _features(zones), _features(phenomena))
+        for offset, zones, phenomena in days
+    ]
+    table = ZoneTable.of(
+        (
+            _zone_name(feature.properties),
+            _municipalities(feature.properties),
+            feature.geometry,
+        )
+        for _offset, zones, _phenomena in files
+        for feature in zones
+    )
+    records = tuple(
+        VigilanceRecord(
+            day=offset,
+            zone=table.code_of(_zone_name(feature.properties)),
+            precipitation=_precipitation(feature.properties).code,
+        )
+        for offset, zones, _phenomena in files
+        for feature in zones
+    )
+    phenomena = []
+    for offset, _zones, features in files:
+        for feature in features:
+            code = feature.properties.get("id_fenomeno")
+            position = _position(feature)
+            if isinstance(code, bool) or not isinstance(code, int) or position is None:
+                continue
+            latitude, longitude = position
+            phenomena.append(
+                PhenomenonRecord(
+                    day=offset,
+                    code=code,
+                    latitude=round(latitude, COORDINATE_DECIMALS),
+                    longitude=round(longitude, COORDINATE_DECIMALS),
+                )
+            )
+    return CompactVigilance(bulletin_id, table, records, tuple(phenomena))

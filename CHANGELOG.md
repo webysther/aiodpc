@@ -29,8 +29,18 @@ change the API.
 - `Language.of(tag)`: the language of a tag such as `"pt_BR"` or `"it-IT"`.
 - A tutorial in the README and in `examples/tutorial.ipynb`, from one question
   about one place to the map of Italy and the same notice in six languages.
+- `code` and `from_code()` on every value: `AlertLevel.YELLOW.code` is 2,
+  `RiskType.from_code(3)` is `RiskType.HYDROGEOLOGICAL`. The codes DPC
+  publishes are kept (`id_fenomeno`, `id_classificazione`); the others are
+  listed in the data dictionary and never change once released.
+- `CriticalityMap.compact()` and `VigilanceMap.compact()`
+  (`aiodpc.compact`): a whole bulletin as records of numeric codes, with the
+  zones in a `ZoneTable` whose `fingerprint` changes only when the zones do.
+  A day of both bulletins is about 13 kB of CSV instead of 19 MB of GeoJSON.
 - `docs/data-dictionary.xlsx`: every field of the DPC files and every value
   they take, with a numeric code, the text DPC writes and its translations.
+- `docs/study/`: a study of the DPC data, in English and Italian, with the
+  measurements and a proposal of a lighter data model.
 
 ### Changed
 

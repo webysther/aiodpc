@@ -62,8 +62,8 @@ dev = [
   # Certificates of the local HTTPS server standing in for DPC in the tests
   "trustme>=1.2",
 ]
-# Writes docs/data-dictionary.xlsx (docs/data_dictionary.py)
-docs = ["openpyxl>=3.1"]
+# Writes docs/data-dictionary.xlsx and the measurements of docs/study
+docs = ["matplotlib>=3.9", "openpyxl>=3.1"]
 # Runs examples/tutorial.ipynb again, with today's bulletins
 notebook = [
   "ipykernel>=6.29",
@@ -102,9 +102,10 @@ runtime-evaluated-decorators = ["dataclasses.dataclass"]
 "examples/**" = [
   "T201", # the tutorial prints its answers
 ]
-"docs/*.py" = [
-  "E501", # the texts of the document, one per line
-  "INP001", # a script, not a package
+"docs/**/*.py" = [
+  "E501", # the texts of the documents, one per line
+  "INP001", # scripts, not a package
+  "T201", # they print
 ]
 "src/aiodpc/i18n/{de,en,es,fr,it,pt_br}.py" = [
   "E501", # one text per line, as translators read and search them

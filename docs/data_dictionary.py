@@ -54,40 +54,12 @@ AIODPC: Final = "aiodpc"
 PROPOSED: Final = "proposed"
 """Code status: a code proposed by this document."""
 
-RISK_TYPE_CODES: Final = {
-    RiskType.HYDRAULIC: 1,
-    RiskType.THUNDERSTORMS: 2,
-    RiskType.HYDROGEOLOGICAL: 3,
-}
-"""Proposed codes of the risks, in the order of the DPC properties."""
-
-BULLETIN_KIND_CODES: Final = {BulletinKind.CRITICALITY: 1, BulletinKind.VIGILANCE: 2}
-"""Proposed codes of the bulletins."""
-
 COMPASS_STEP_DEGREES: Final = 360 / len(CompassPoint)
 """Degrees between two compass points: 22.5."""
 
 UNKNOWN_NOTE: Final = (
     "Not published by DPC: what aiodpc gives a missing or unrecognised value."
 )
-
-
-def category_code(category: PhenomenonCategory) -> int:
-    """Return the proposed code of a category: the tens of its DPC codes."""
-    # Unpacking fails if a category spans several tens
-    (code,) = {
-        code // 10
-        for code, (item, _legend) in PHENOMENON_TYPES.items()
-        if item is category
-    }
-    return code
-
-
-def phenomenon_code(phenomenon_type: PhenomenonType) -> int:
-    """Return the DPC code (id_fenomeno) of a phenomenon type."""
-    return next(
-        code for code in PHENOMENON_TYPES if PhenomenonType.of(code) is phenomenon_type
-    )
 
 
 def labels(value: Enum) -> list[str]:
@@ -107,7 +79,7 @@ def values() -> Iterable[list[object]]:
         )
         yield [
             "AlertLevel",
-            level.value,
+            level.code,
             AIODPC,
             str(level),
             alert_texts.get(level, ""),
@@ -119,11 +91,11 @@ def values() -> Iterable[list[object]]:
         note = (
             UNKNOWN_NOTE
             if unknown
-            else f"Always with the alert level of code {criticality.value}."
+            else f"Always with the alert level of code {criticality.code}."
         )
         yield [
             "Criticality",
-            criticality.value,
+            criticality.code,
             AIODPC,
             str(criticality),
             "" if unknown else italian(criticality),
@@ -134,7 +106,7 @@ def values() -> Iterable[list[object]]:
         note = "No red alert since 2020." if risk_type is RiskType.THUNDERSTORMS else ""
         yield [
             "RiskType",
-            RISK_TYPE_CODES[risk_type],
+            risk_type.code,
             PROPOSED,
             str(risk_type),
             RISK_PROPERTIES[risk_type],
@@ -147,7 +119,7 @@ def values() -> Iterable[list[object]]:
         note = UNKNOWN_NOTE if unknown else "The code is id_classificazione."
         yield [
             "Precipitation",
-            precipitation.value,
+            precipitation.code,
             status,
             str(precipitation),
             text,
@@ -155,11 +127,10 @@ def values() -> Iterable[list[object]]:
             note,
         ]
     for category in PhenomenonCategory:
-        code = category_code(category)
         note = "The tens of id_fenomeno (id_fenomeno // 10)."
         yield [
             "PhenomenonCategory",
-            code,
+            category.code,
             PROPOSED,
             str(category),
             "",
@@ -167,22 +138,21 @@ def values() -> Iterable[list[object]]:
             note,
         ]
     for phenomenon_type in PhenomenonType:
-        code = phenomenon_code(phenomenon_type)
-        _category, legend = PHENOMENON_TYPES[code]
+        _category, legend = PHENOMENON_TYPES[phenomenon_type.code]
         yield [
             "PhenomenonType",
-            code,
+            phenomenon_type.code,
             DPC,
             str(phenomenon_type),
             legend,
             *labels(phenomenon_type),
             "The code is id_fenomeno; the text is the DPC legend.",
         ]
-    for index, point in enumerate(CompassPoint):
-        degrees = f"{index * COMPASS_STEP_DEGREES:g}°"
+    for point in CompassPoint:
+        degrees = f"{point.code * COMPASS_STEP_DEGREES:g}°"
         yield [
             "CompassPoint",
-            index,
+            point.code,
             PROPOSED,
             str(point),
             "",
@@ -197,7 +167,7 @@ def values() -> Iterable[list[object]]:
         ]
         yield [
             "Day",
-            day.value,
+            day.code,
             AIODPC,
             day.name.lower(),
             " / ".join(files),
@@ -207,7 +177,7 @@ def values() -> Iterable[list[object]]:
     for kind in BulletinKind:
         yield [
             "BulletinKind",
-            BULLETIN_KIND_CODES[kind],
+            kind.code,
             PROPOSED,
             str(kind),
             italian(kind),
@@ -403,7 +373,7 @@ ABOUT: Final = (
     "Measured",
     "The summaries of the 2572 criticality bulletins published from January 2020 to 15 November 2026, and every zone of 73 of them (12,250 zone-days) chosen for their red and orange alerts and their days with several risks. The criticality texts are a closed set: four criticalities and three risks, each criticality always with the same alert level. DPC never published a red alert for thunderstorms.",
     "Source",
-    f"Generated by docs/data_dictionary.py from aiodpc {aiodpc.__version__} (https://github.com/webysther/aiodpc): the codes are those of aiodpc.models, the texts those of aiodpc.i18n.",
+    f"Generated by docs/data_dictionary.py from aiodpc {aiodpc.__version__} (https://github.com/webysther/aiodpc): the codes are the .code of the values of aiodpc.models, the texts those of aiodpc.i18n.",
     "Data",
     f"{aiodpc.ATTRIBUTION}, CC BY 4.0. This document is not affiliated with DPC.",
 )

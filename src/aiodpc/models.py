@@ -6,7 +6,7 @@ import datetime as dt
 import math
 from dataclasses import dataclass
 from enum import Enum, IntEnum, StrEnum
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import TYPE_CHECKING, Any, Final, Protocol, Self
 
 from .const import ROME_TZ
 
@@ -25,6 +25,30 @@ class _NamedLevel(IntEnum):
 
     def __format__(self, format_spec: str) -> str:
         return format(str(self), format_spec)
+
+    @property
+    def code(self) -> int:
+        """Return the numeric code of the value: its number, e.g. 2 for yellow."""
+        return int(self)
+
+    @classmethod
+    def from_code(cls, code: int) -> Self | None:
+        """Return the value of a numeric code; None when no value has it."""
+        return next((member for member in cls if member.code == code), None)
+
+
+class _Coded(StrEnum):
+    """A value named by a text, with a numeric code from its table of codes."""
+
+    @property
+    def code(self) -> int:
+        """Return the numeric code of the value (see the data dictionary)."""
+        return _CODES[type(self)][self]
+
+    @classmethod
+    def from_code(cls, code: int) -> Self | None:
+        """Return the value of a numeric code; None when no value has it."""
+        return next((member for member in cls if member.code == code), None)
 
 
 class AlertLevel(_NamedLevel):
@@ -130,7 +154,7 @@ for their days with several risks, use only these four.
 """
 
 
-class RiskType(StrEnum):
+class RiskType(_Coded):
     """Risk assessed by the criticality bulletin."""
 
     HYDRAULIC = "hydraulic"
@@ -154,6 +178,15 @@ class RiskType(StrEnum):
         return RISK_TYPE_NAMES.get(names[0])
 
 
+RISK_TYPE_CODES: Final[Mapping[RiskType, int]] = {
+    RiskType.HYDRAULIC: 1,
+    RiskType.THUNDERSTORMS: 2,
+    RiskType.HYDROGEOLOGICAL: 3,
+}
+"""Codes of the risks, proposed by aiodpc: the order of their DPC properties
+("Per rischio idraulico", "Per rischio temporali", "Per rischio
+idrogeologico")."""
+
 RISK_NAME_PREFIX: Final = "per rischio "
 """What precedes the name of a risk in the DPC texts, in lower case."""
 
@@ -165,7 +198,7 @@ RISK_TYPE_NAMES: Final[Mapping[str, RiskType]] = {
 """The Italian name of each risk in the DPC texts (``"per rischio temporali"``)."""
 
 
-class CompassPoint(StrEnum):
+class CompassPoint(_Coded):
     """A point of the 16-point compass rose, as its English abbreviation."""
 
     N = "N"
@@ -186,7 +219,14 @@ class CompassPoint(StrEnum):
     NNW = "NNW"
 
 
-class PhenomenonCategory(StrEnum):
+COMPASS_POINT_CODES: Final[Mapping[CompassPoint, int]] = {
+    point: index for index, point in enumerate(CompassPoint)
+}
+"""Codes of the compass points, proposed by aiodpc: 0 for north, then
+clockwise, 22.5 degrees apart."""
+
+
+class PhenomenonCategory(_Coded):
     """Category of a weather phenomenon of the vigilance bulletin."""
 
     PRECIPITATION = "precipitation"
@@ -198,7 +238,20 @@ class PhenomenonCategory(StrEnum):
     TEMPERATURE = "temperature"
 
 
-class PhenomenonType(StrEnum):
+PHENOMENON_CATEGORY_CODES: Final[Mapping[PhenomenonCategory, int]] = {
+    PhenomenonCategory.PRECIPITATION: 0,
+    PhenomenonCategory.WIND: 1,
+    PhenomenonCategory.FROST: 2,
+    PhenomenonCategory.FOG: 3,
+    PhenomenonCategory.SEA: 4,
+    PhenomenonCategory.WAVE_MOTION: 5,
+    PhenomenonCategory.TEMPERATURE: 6,
+}
+"""Codes of the categories, proposed by aiodpc: the tens of the DPC codes of
+their phenomena (``id_fenomeno // 10``)."""
+
+
+class PhenomenonType(_Coded):
     """Type of a weather phenomenon of the vigilance bulletin, from its DPC code.
 
     The names say in English what the DPC legend says in Italian, which
@@ -289,14 +342,35 @@ PHENOMENON_TYPE_CODES: Final[Mapping[int, PhenomenonType]] = {
 }
 """The type of each DPC phenomenon code (``id_fenomeno``), as in the legend."""
 
+_PHENOMENON_TYPE_NUMBERS: Final[Mapping[PhenomenonType, int]] = {
+    phenomenon_type: code for code, phenomenon_type in PHENOMENON_TYPE_CODES.items()
+}
+"""The code of each phenomenon type: the DPC ``id_fenomeno``."""
 
-class BulletinKind(StrEnum):
+
+class BulletinKind(_Coded):
     """Kind of DPC bulletin."""
 
     CRITICALITY = "criticality"
     """Bollettino di criticità idrogeologica e idraulica: the alert levels."""
     VIGILANCE = "vigilance"
     """Bollettino di vigilanza meteorologica: the expected weather."""
+
+
+BULLETIN_KIND_CODES: Final[Mapping[BulletinKind, int]] = {
+    BulletinKind.CRITICALITY: 1,
+    BulletinKind.VIGILANCE: 2,
+}
+"""Codes of the bulletins, proposed by aiodpc."""
+
+_CODES: Final[Mapping[type[_Coded], Mapping[Any, int]]] = {
+    RiskType: RISK_TYPE_CODES,
+    CompassPoint: COMPASS_POINT_CODES,
+    PhenomenonCategory: PHENOMENON_CATEGORY_CODES,
+    PhenomenonType: _PHENOMENON_TYPE_NUMBERS,
+    BulletinKind: BULLETIN_KIND_CODES,
+}
+"""The table of codes of each enum named by a text."""
 
 
 def rome_date(now: dt.datetime | None = None) -> dt.date:
@@ -325,6 +399,16 @@ class Day(Enum):
     def date(self, now: dt.datetime | None = None) -> dt.date:
         """Return the calendar date of the day at ``now`` (default: now)."""
         return rome_date(now) + dt.timedelta(days=self.value)
+
+    @property
+    def code(self) -> int:
+        """Return the numeric code of the day: the days after today."""
+        return int(self.value)
+
+    @classmethod
+    def from_code(cls, code: int) -> Day | None:
+        """Return the day of a numeric code; None when no day has it."""
+        return next((member for member in cls if member.code == code), None)
 
 
 def calendar_date(day: Day | dt.date) -> dt.date:

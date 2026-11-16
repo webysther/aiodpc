@@ -1,0 +1,440 @@
+{
+  "until": "20261115",
+  "measured_on": "2026-11-16",
+  "history": {
+    "bulletins": 2572,
+    "first": "20200101_1530",
+    "last": "20261115_1421",
+    "days": 2511,
+    "days_with_update": 58,
+    "texts": {
+      "ORDINARIA CRITICITA' PER RISCHIO TEMPORALI / ALLERTA GIALLA": 3003,
+      "ORDINARIA CRITICITA' PER RISCHIO IDROGEOLOGICO / ALLERTA GIALLA": 2991,
+      "ORDINARIA CRITICITA' PER RISCHIO IDRAULICO / ALLERTA GIALLA": 2176,
+      "ASSENZA DI FENOMENI SIGNIFICATIVI PREVEDIBILI / NESSUNA ALLERTA": 1736,
+      "MODERATA CRITICITA' PER RISCHIO IDROGEOLOGICO / ALLERTA ARANCIONE": 814,
+      "MODERATA CRITICITA' PER RISCHIO IDRAULICO / ALLERTA ARANCIONE": 591,
+      "MODERATA CRITICITA' PER RISCHIO TEMPORALI / ALLERTA ARANCIONE": 581,
+      "ELEVATA CRITICITA' PER RISCHIO IDRAULICO / ALLERTA ROSSA": 154,
+      "ELEVATA CRITICITA' PER RISCHIO IDROGEOLOGICO / ALLERTA ROSSA": 146
+    },
+    "groups": {
+      "several risks": 2854,
+      "orange": 1052,
+      "red": 206
+    }
+  },
+  "sample": {
+    "files": 73,
+    "zone_days": 12250,
+    "summary_texts": {
+      "Assenza di fenomeni significativi prevedibili / NESSUNA ALLERTA": 8412,
+      "Elevata per rischio idraulico / ALLERTA ROSSA": 86,
+      "Elevata per rischio idrogeologico / ALLERTA ROSSA": 63,
+      "Moderata per rischio idraulico / ALLERTA ARANCIONE": 379,
+      "Moderata per rischio idrogeologico / ALLERTA ARANCIONE": 239,
+      "Moderata per rischio temporali / ALLERTA ARANCIONE": 224,
+      "Ordinaria per rischio idraulico / ALLERTA GIALLA": 763,
+      "Ordinaria per rischio idrogeologico / ALLERTA GIALLA": 619,
+      "Ordinaria per rischio temporali / ALLERTA GIALLA": 1465
+    },
+    "risk_texts": {
+      "Assenza di fenomeni significativi prevedibili / NESSUNA ALLERTA": 29812,
+      "Elevata / ALLERTA ROSSA": 202,
+      "Moderata / ALLERTA ARANCIONE": 1466,
+      "Ordinaria / ALLERTA GIALLA": 5270
+    },
+    "criticality_level_pairs": [
+      [
+        "absent",
+        "green"
+      ],
+      [
+        "high",
+        "red"
+      ],
+      [
+        "moderate",
+        "orange"
+      ],
+      [
+        "ordinary",
+        "yellow"
+      ]
+    ],
+    "summaries_name_one_risk": true,
+    "zone_set_changes": [
+      {
+        "file": "20200723_1539_today.json",
+        "zones": 158,
+        "added": [],
+        "removed": []
+      },
+      {
+        "file": "20210427_1506_tomorrow.json",
+        "zones": 168,
+        "added": [
+          "Alta collina piacentino-parmense",
+          "Alta collina romagnola",
+          "Bassa collina e pianura romagnola",
+          "Bassa collina piacentino-parmense",
+          "Collina bolognese",
+          "Collina emiliana centrale",
+          "Costa ferrarese",
+          "Costa romagnola",
+          "Montagna bolognese",
+          "Montagna emiliana centrale",
+          "Montagna piacentino-parmense",
+          "Montagna romagnola",
+          "Pianura bolognese di Reno e suoi affluenti",
+          "Pianura ferrarese di Po e Po di volano",
+          "Pianura modenese di Secchia e Panaro",
+          "Pianura piacentino-parmense",
+          "Pianura reggiana di Enza e Crostolo",
+          "Pianura reggiana di Po"
+        ],
+        "removed": [
+          "Bacini emiliani centrali",
+          "Bacini emiliani occidentali",
+          "Bacini emiliani orientali",
+          "Bacini romagnoli",
+          "Pianura e bassa collina emiliana occidentale",
+          "Pianura e costa romagnola",
+          "Pianura emiliana centrale",
+          "Pianura emiliana orientale e costa Ferrarese"
+        ]
+      },
+      {
+        "file": "20210707_1549_tomorrow.json",
+        "zones": 170,
+        "added": [
+          "Bassa pianura centro-occidentale",
+          "Bassa pianura centro-orientale",
+          "Nodo Idraulico di Milano"
+        ],
+        "removed": [
+          "Nodo idraulico di Milano"
+        ]
+      },
+      {
+        "file": "20230527_1527_today.json",
+        "zones": 170,
+        "added": [
+          "Pianura bolognese",
+          "Pianura ferrarese",
+          "Pianura modenese",
+          "Pianura reggiana"
+        ],
+        "removed": [
+          "Pianura bolognese di Reno e suoi affluenti",
+          "Pianura ferrarese di Po e Po di volano",
+          "Pianura modenese di Secchia e Panaro",
+          "Pianura reggiana di Enza e Crostolo"
+        ]
+      },
+      {
+        "file": "20260817_1422_today.json",
+        "zones": 187,
+        "added": [
+          "Alpago Cansiglio - Bacino Piave",
+          "Alta pianura trevigiana occidentale - Bacini Piave, Sile, Scolante in Laguna",
+          "Alta pianura trevigiana orientale - Bacino Livenza",
+          "Bassa Valle d?Aosta, dalla Gola di Montjovet a Pont-Saint-Martin, Valle del torrente Chalamy, Valle d?Ayas, Valle di Champorcher e Valle di Gresso",
+          "Colli Euganei e Colli Berici - Bacini Bacchiglione Fratta-Gorzone",
+          "Costa centro meridionale - Bacini Brenta Bacchiglione, Fratta-Gorzone, Adige, Scolante in Laguna",
+          "Costa centro-orientale - Bacini del Piave, Sile, Scolante in Laguna, Pianura tra Livenza e Piave",
+          "Costa meridionale e Delta Po - Bacini Fissero Tartaro Canalbianco, Po, Adige",
+          "Costa orientale Bacini Livenza, Lemene, Tagliamento, Pianura tra Livenza e Piave",
+          "Dolomiti Occidentali: Agordino, Zoldano, alta Val Boite",
+          "Dolomiti orientali: Cadore, Comelico",
+          "Feltrino - Bacino Cismon",
+          "Lessinia meridionale e alta pianura veronese - Bacino Adige",
+          "Pedemontana e alta pianura centrale - Bacini Brenta Bacchiglione Agno-Guà Alpone",
+          "Pianura centrale - Bacini Brenta Bacchiglione, Muson, Scolante in Laguna",
+          "Pianura centro meridionale - Bacini Bacchiglione Fratta-Gorzone, Adige, Scolante in Laguna, Fissero Tartaro Canalbianco",
+          "Pianura centro meridionale e Bassa padovana - Bacini Fratta-Gorzone, Adige, Scolante in Laguna",
+          "Pianura centro-orientale - Bacini del Piave, Sile, Scolante in Laguna, Pianura tra Livenza e Piave",
+          "Pianura orientale - Bacini Livenza, Lemene, Pianura tra Livenza e Piave",
+          "Pianura polesana centrale - Bacini Fissero Tartaro Canalbianco,Po, Adige",
+          "Polesine occidentale, Bassa Veronese e Valli Grandi Veronesi - Bacini Fissero Tartaro Canalbianco, Po, Adige",
+          "Prealpi bellunesi Valbelluna/Feltrino - Bacino Piave",
+          "Prealpi orientali, Baldo e Lessinia settentrionale - Bacino Adige",
+          "Prealpi trevigiane - Bacino Livenza",
+          "Prealpi trevigiane - Bacino Piave",
+          "Prealpi vicentine Altopiano dei Sette Comuni - Bacini Brenta Bacchiglione Agno"
+        ],
+        "removed": [
+          "Adige-Garda e monti Lessini",
+          "Alto Brenta-Bacchiglione-Alpone",
+          "Alto Piave",
+          "Bassa Valle d?Aosta, dalla Gola di Montjovet a Pont-Saint-Martin, Valle del torrente Chalamy, Valle d?Ayas, Valle di Champorcher e Valle di Gressoney",
+          "Basso Brenta-Bacchiglione e Fratta Gorzone",
+          "Basso Piave, Sile e Bacino scolante in laguna",
+          "Livenza, Lemene e Tagliamento",
+          "Piave pedemontano",
+          "Po, Fissero-Tartaro-Canalbianco e Basso Adige"
+        ]
+      }
+    ],
+    "shapes": {
+      "compared": 12041,
+      "same": 11684,
+      "changes": [
+        {
+          "previous": "20201208_1603_tomorrow.json",
+          "file": "20210427_1506_tomorrow.json",
+          "zones": 14
+        },
+        {
+          "previous": "20210427_1506_tomorrow.json",
+          "file": "20210707_1549_tomorrow.json",
+          "zones": 13
+        },
+        {
+          "previous": "20230521_1527_tomorrow.json",
+          "file": "20230527_1527_today.json",
+          "zones": 166
+        },
+        {
+          "previous": "20251109_1413_tomorrow.json",
+          "file": "20260118_1824_today.json",
+          "zones": 16
+        },
+        {
+          "previous": "20260314_1521_tomorrow.json",
+          "file": "20260817_1422_today.json",
+          "zones": 148
+        }
+      ]
+    },
+    "municipalities": {
+      "entries": 4671290,
+      "unique": 598107,
+      "files_with_repeats": [
+        {
+          "file": "20200723_1539_today.json",
+          "entries": 205375,
+          "unique": 8215
+        },
+        {
+          "file": "20200928_1500_today.json",
+          "entries": 509330,
+          "unique": 8215
+        },
+        {
+          "file": "20201003_2046_today.json",
+          "entries": 32860,
+          "unique": 8215
+        },
+        {
+          "file": "20201114_1443_today.json",
+          "entries": 115010,
+          "unique": 8215
+        },
+        {
+          "file": "20201119_1536_tomorrow.json",
+          "entries": 156085,
+          "unique": 8215
+        },
+        {
+          "file": "20201121_1514_today.json",
+          "entries": 172515,
+          "unique": 8215
+        },
+        {
+          "file": "20201121_1514_tomorrow.json",
+          "entries": 172515,
+          "unique": 8215
+        },
+        {
+          "file": "20201122_1418_tomorrow.json",
+          "entries": 180730,
+          "unique": 8215
+        },
+        {
+          "file": "20201127_1526_today.json",
+          "entries": 221805,
+          "unique": 8215
+        },
+        {
+          "file": "20201128_1509_today.json",
+          "entries": 230020,
+          "unique": 8215
+        },
+        {
+          "file": "20201128_1509_tomorrow.json",
+          "entries": 230020,
+          "unique": 8215
+        },
+        {
+          "file": "20201205_1533_today.json",
+          "entries": 287525,
+          "unique": 8215
+        },
+        {
+          "file": "20201205_1533_tomorrow.json",
+          "entries": 287525,
+          "unique": 8215
+        },
+        {
+          "file": "20201207_1541_tomorrow.json",
+          "entries": 303955,
+          "unique": 8215
+        },
+        {
+          "file": "20201208_1603_today.json",
+          "entries": 312170,
+          "unique": 8215
+        },
+        {
+          "file": "20201208_1603_tomorrow.json",
+          "entries": 312170,
+          "unique": 8215
+        },
+        {
+          "file": "20210427_1506_tomorrow.json",
+          "entries": 16384,
+          "unique": 8192
+        },
+        {
+          "file": "20210707_1549_tomorrow.json",
+          "entries": 327600,
+          "unique": 8190
+        },
+        {
+          "file": "20210731_1554_tomorrow.json",
+          "entries": 131040,
+          "unique": 8190
+        },
+        {
+          "file": "20230527_1527_today.json",
+          "entries": 16374,
+          "unique": 8187
+        },
+        {
+          "file": "20240224_1529_tomorrow.json",
+          "entries": 24561,
+          "unique": 8187
+        }
+      ],
+      "most_repeats_of_a_name": 62,
+      "compared": 12041,
+      "same_set": 11886,
+      "same_order": 11881
+    },
+    "lost_characters": {
+      "Valle d?Aosta centrale, Valle del Gran San Bernardo da Aosta a Valpelline,Valle di Saint-Barthélemy e Valtournenche": 73,
+      "Bassa Valle d?Aosta, dalla Gola di Montjovet a Pont-Saint-Martin, Valle del torrente Chalamy, Valle d?Ayas, Valle di Champorcher e Valle di Gressoney": 71,
+      "Savogna d'Isonzo-Sovodnje ob So?i": 19,
+      "Bassa Valle d?Aosta, dalla Gola di Montjovet a Pont-Saint-Martin, Valle del torrente Chalamy, Valle d?Ayas, Valle di Champorcher e Valle di Gresso": 2
+    },
+    "files_with_lost_characters": 73,
+    "names_cut_mid_word": [
+      {
+        "before": "Bassa Valle d?Aosta, dalla Gola di Montjovet a Pont-Saint-Martin, Valle del torrente Chalamy, Valle d?Ayas, Valle di Champorcher e Valle di Gressoney",
+        "after": "Bassa Valle d?Aosta, dalla Gola di Montjovet a Pont-Saint-Martin, Valle del torrente Chalamy, Valle d?Ayas, Valle di Champorcher e Valle di Gresso",
+        "characters": 146,
+        "bytes_with_apostrophes": 150
+      }
+    ]
+  },
+  "day": {
+    "criticality": "20261115_1421",
+    "vigilance": "20261115",
+    "files": {
+      "criticality_0": {
+        "bytes": 5527427,
+        "gzip": 2204074,
+        "features": 187,
+        "geometry": 5325539,
+        "municipalities": 116402,
+        "other_properties": 77030
+      },
+      "criticality_1": {
+        "bytes": 5526868,
+        "gzip": 2204101,
+        "features": 187,
+        "geometry": 5325539,
+        "municipalities": 116402,
+        "other_properties": 76471
+      },
+      "vigilance_0": {
+        "bytes": 2721502,
+        "gzip": 1051583,
+        "features": 71,
+        "geometry": 2551583,
+        "municipalities": 151585,
+        "other_properties": 8965
+      },
+      "vigilance_1": {
+        "bytes": 2721131,
+        "gzip": 1047503,
+        "features": 71,
+        "geometry": 2551583,
+        "municipalities": 151585,
+        "other_properties": 8523
+      },
+      "vigilance_2": {
+        "bytes": 2721279,
+        "gzip": 1051060,
+        "features": 71,
+        "geometry": 2551583,
+        "municipalities": 151585,
+        "other_properties": 8742
+      },
+      "phenomena_0": {
+        "bytes": 19767,
+        "gzip": 2439,
+        "features": 63,
+        "geometry": 3498,
+        "municipalities": 0,
+        "other_properties": 8450
+      },
+      "phenomena_1": {
+        "bytes": 27486,
+        "gzip": 3257,
+        "features": 88,
+        "geometry": 4887,
+        "municipalities": 0,
+        "other_properties": 11818
+      },
+      "phenomena_2": {
+        "bytes": 28517,
+        "gzip": 3373,
+        "features": 91,
+        "geometry": 5051,
+        "municipalities": 0,
+        "other_properties": 12231
+      }
+    },
+    "dpc_bytes": 19293977,
+    "dpc_gzip": 7567390,
+    "compact": {
+      "criticality.csv": 6595,
+      "vigilance.csv": 1487,
+      "phenomena.csv": 5338
+    },
+    "compact_bytes": 13420,
+    "compact_gzip": 3762,
+    "references": {
+      "criticality_zones.json": 123624,
+      "vigilance_zones.json": 154696,
+      "criticality_zones.geojson": 5343409,
+      "vigilance_zones.geojson": 2558724
+    },
+    "ratio": 1437.7032041728762,
+    "ratio_gzip": 2011.5337586390217,
+    "zone_sets": [
+      "68bcac32826e",
+      "d124f4a6cd97"
+    ],
+    "decode_dpc_seconds": 0.3995849060593173,
+    "decode_compact_seconds": 0.00028046395163983107,
+    "year_dpc_bytes": 7042301605,
+    "year_compact_bytes": 4898300
+  },
+  "repository_kilobytes": {
+    "pcm-dpc/DPC-Bollettini-Criticita-Idrogeologica-Idraulica": 6587163,
+    "pcm-dpc/DPC-Bollettini-Vigilanza-Meteorologica": 12937431
+  }
+}
