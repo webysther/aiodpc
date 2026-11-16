@@ -597,6 +597,11 @@ A full day of both bulletins is about 13 kB of CSV instead of 19 MB of
 GeoJSON. The [study](https://github.com/webysther/aiodpc/blob/main/docs/study/en.md)
 measures it and proposes this model to DPC.
 
+The bulletins of a whole quarter in this form, one JSON document per line,
+are in [`data`](https://github.com/webysther/aiodpc/tree/main/data), with
+examples in pandas and DuckDB: 1.1 MB for the 1.8 GB that DPC published in
+the third quarter of 2026.
+
 ### Low-level API
 
 - `aiodpc.parsers`: pure parsing functions taking the decoded GeoJSON, to parse

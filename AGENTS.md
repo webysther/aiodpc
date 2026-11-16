@@ -61,6 +61,8 @@ docs/paper/          the study as a research article (LaTeX, elsarticle) for
                      Government Information Quarterly: manuscript.tex
                      (anonymized), title-page.tex, highlights.txt, references.bib,
                      CHANGELOG.md (its revisions); built by .github/workflows/paper.yml
+data/                the bulletins of a quarter as compact JSON Lines (2026-Q3),
+                     written by data/build.py; README.md documents the format
 CITATION.cff         how to cite aiodpc and the study (author: Webysther Sperandio)
 ```
 
