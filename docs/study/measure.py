@@ -5,7 +5,9 @@
 
 Downloads into CACHE_DIR, and keeps between runs (about 450 MB): the summary
 of every criticality bulletin published up to :data:`UNTIL`, a seeded sample
-of their GeoJSON files, and the files of one day of both bulletins. Writes
+of their GeoJSON files, and the files of one day of both bulletins. The census
+reads the GeoJSON file of the day of every bulletin (about 14 GB) as it
+arrives and keeps only the digests of its zones (``census.jsonl``). Writes
 ``results.json`` and the figures next to this script. The bulletins are fixed,
 so a later run gives the same numbers, except the sizes of the repositories.
 """
@@ -25,6 +27,9 @@ import random
 import re
 import time
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor
+from http import HTTPStatus
+from itertools import groupby
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
@@ -64,6 +69,13 @@ DOWNLOADS: Final = 12
 """Downloads at the same time."""
 TIMINGS: Final = 5
 """Runs of each timing; the fastest is kept."""
+CENSUS_ATTEMPTS: Final = 4
+"""Tries of each download of the census, waiting 1, 2 and 4 s between them."""
+CENSUS_DIGEST: Final = 16
+"""Hexadecimal digits kept of each SHA-256 digest of the census: 64 bits, so a
+collision among a few thousand shapes is out of the question."""
+CENSUS_PROGRESS: Final = 100
+"""Bulletins between two progress lines of the census."""
 DAYS_PER_YEAR: Final = 365
 RFC7946_DECIMALS: Final = 6
 """Decimals of a coordinate RFC 7946 (GeoJSON, section 11.2) finds enough:
@@ -81,6 +93,8 @@ names of the Aosta Valley lost ("Valle d?Aosta")."""
 
 LOST_CHARACTER: Final = re.compile(r"\w\?\w")
 """A character lost by an encoding error: "Valle d?Aosta"."""
+REPLACEMENT_CHARACTER: Final = "\ufffd"
+"""The character that replaces bytes that are not UTF-8: "F\ufffdnis" (Fénis)."""
 
 
 async def fetch(session: aiohttp.ClientSession, url: str, path: Path) -> bytes:
@@ -344,7 +358,18 @@ def damaged_names(
         # Cut in the middle of a word, unlike a zone renamed to a shorter name
         if old.startswith(new) and old != new and old[len(new)].isalpha()
     ]
+    replaced = Counter(
+        text
+        for geojson in files
+        for text in names_of(geojson)
+        if REPLACEMENT_CHARACTER in text
+    )
     return {
+        "replaced_characters": dict(replaced.most_common()),
+        "files_with_replaced_characters": sum(
+            any(REPLACEMENT_CHARACTER in text for text in names_of(geojson))
+            for geojson in files
+        ),
         "lost_characters": dict(lost.most_common()),
         "files_with_lost_characters": sum(
             any(
@@ -371,6 +396,205 @@ def sample_zones(
         "shapes": shape_changes(names, files),
         "municipalities": municipality_lists(names, files),
         **damaged_names(files, changes),
+    }
+
+
+def names_of(geojson: dict[str, Any]) -> list[str]:
+    """Return the zone and municipality names of a criticality file."""
+    return [
+        text
+        for feature in geojson["features"]
+        for text in [
+            feature["properties"]["Nome zona"],
+            *(feature["properties"].get("Comuni") or []),
+        ]
+    ]
+
+
+def census_entry(bulletin_id: str, data: bytes) -> dict[str, Any]:
+    """Return the digests of the zones of one criticality file.
+
+    Each zone keeps the digest of its shape and of its set of municipalities,
+    so that the 14 GB of files are compared without being kept.
+    """
+    geojson = json.loads(data)
+    zones = zones_of(geojson)
+    names = set(names_of(geojson))
+    return {
+        "id": bulletin_id,
+        "bytes": len(data),
+        "lost": sum(bool(LOST_CHARACTER.search(name)) for name in names),
+        "replaced": sum(REPLACEMENT_CHARACTER in name for name in names),
+        "repeated": sum(
+            len(listed) - len(set(listed))
+            for feature in zones.values()
+            for listed in [feature["properties"].get("Comuni") or []]
+        ),
+        "without_municipalities": sorted(
+            name
+            for name, feature in zones.items()
+            if not feature["properties"].get("Comuni")
+        ),
+        "zones": {
+            name: [
+                digest(feature["geometry"])[:CENSUS_DIGEST],
+                digest(sorted(set(feature["properties"].get("Comuni") or [])))[
+                    :CENSUS_DIGEST
+                ],
+            ]
+            for name, feature in sorted(zones.items())
+        },
+    }
+
+
+async def census_download(
+    session: aiohttp.ClientSession, bulletin_id: str
+) -> bytes | None:
+    """Return the criticality file of the day of a bulletin, None if missing."""
+    url = RAW.format(repo=CRITICALITY_REPO, path=f"geojson/{bulletin_id}_today.json")
+    for attempt in range(CENSUS_ATTEMPTS):
+        try:
+            async with session.get(url) as response:
+                if response.status == HTTPStatus.NOT_FOUND:
+                    return None
+                response.raise_for_status()
+                return await response.read()
+        except aiohttp.ClientError:
+            if attempt == CENSUS_ATTEMPTS - 1:
+                raise
+            await asyncio.sleep(2**attempt)
+    return None
+
+
+async def census(
+    session: aiohttp.ClientSession, cache: Path, ids: Sequence[str]
+) -> list[dict[str, Any]]:
+    """Return the digests of the file of the day of every bulletin.
+
+    The files are read as they arrive and never written: only their digests
+    are kept, one line per bulletin in the cache, so a later run downloads
+    only the bulletins it has not measured yet.
+    """
+    path = cache / "census.jsonl"
+    done: dict[str, dict[str, Any]] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            entry = json.loads(line)
+            done[entry["id"]] = entry
+    missing = [bulletin_id for bulletin_id in ids if bulletin_id not in done]
+    limit = asyncio.Semaphore(DOWNLOADS)
+    loop = asyncio.get_running_loop()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with (
+        ProcessPoolExecutor() as executor,
+        path.open("a", encoding="utf-8") as output,
+    ):
+
+        async def one(bulletin_id: str) -> None:
+            async with limit:
+                data = await census_download(session, bulletin_id)
+            entry = (
+                {"id": bulletin_id, "missing": True}
+                if data is None
+                else await loop.run_in_executor(
+                    executor, census_entry, bulletin_id, data
+                )
+            )
+            output.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            output.flush()
+            done[bulletin_id] = entry
+            if len(done) % CENSUS_PROGRESS == 0:
+                print(f"census: {len(done)} of {len(ids)} bulletins")
+
+        await asyncio.gather(*(one(bulletin_id) for bulletin_id in missing))
+    return [done[bulletin_id] for bulletin_id in ids]
+
+
+def census_changes(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Compare each bulletin with the previous one: zones, shapes, municipalities.
+
+    Unlike the sample, the census dates each change to the bulletin that
+    brought it.
+    """
+    measured = [entry for entry in entries if not entry.get("missing")]
+    compared = same = 0
+    zone_sets: list[dict[str, Any]] = []
+    shapes: list[dict[str, Any]] = []
+    municipalities: list[dict[str, Any]] = []
+    previous: dict[str, Any] | None = None
+    for entry in measured:
+        zones = entry["zones"]
+        if previous is None or set(zones) != set(previous["zones"]):
+            before = previous["zones"] if previous else zones
+            zone_sets.append(
+                {
+                    "previous": previous["id"] if previous else None,
+                    "bulletin": entry["id"],
+                    "zones": len(zones),
+                    "added": sorted(set(zones) - set(before)),
+                    "removed": sorted(set(before) - set(zones)),
+                }
+            )
+        if previous is not None:
+            common = sorted(set(zones) & set(previous["zones"]))
+            compared += len(common)
+            for index, changes in ((0, shapes), (1, municipalities)):
+                changed = [
+                    zone
+                    for zone in common
+                    if zones[zone][index] != previous["zones"][zone][index]
+                ]
+                if index == 0:
+                    same += len(common) - len(changed)
+                if changed:
+                    changes.append(
+                        {
+                            "previous": previous["id"],
+                            "bulletin": entry["id"],
+                            "zones": len(changed),
+                            "of": len(common),
+                        }
+                    )
+        previous = entry
+    sizes = [entry["bytes"] for entry in measured]
+    defects = {
+        defect: {
+            "bulletins": sum(bool(entry[defect]) for entry in measured),
+            "most_names": max(
+                entry[defect] if isinstance(entry[defect], int) else len(entry[defect])
+                for entry in measured
+            ),
+            "periods": [
+                [run[0]["id"], run[-1]["id"], len(run)]
+                for found, group in groupby(measured, key=lambda e: bool(e[defect]))
+                if found
+                for run in [list(group)]
+            ],
+        }
+        for defect in ("lost", "replaced", "repeated", "without_municipalities")
+    }
+    empty = Counter(
+        name for entry in measured for name in entry["without_municipalities"]
+    )
+    return {
+        "bulletins": len(entries),
+        "measured": len(measured),
+        "missing": [entry["id"] for entry in entries if entry.get("missing")],
+        "gigabytes": round(sum(sizes) / 1e9, 2),
+        "smallest_bytes": min(sizes),
+        "largest_bytes": max(sizes),
+        "compared": compared,
+        "same": same,
+        "zone_set_changes": zone_sets,
+        "shape_changes": shapes,
+        "municipality_changes": municipalities,
+        "lost_characters": defects["lost"],
+        "replaced_characters": defects["replaced"],
+        "repeated_municipalities": defects["repeated"],
+        "without_municipalities": {
+            **defects["without_municipalities"],
+            "zones": dict(empty.most_common()),
+        },
     }
 
 
@@ -667,6 +891,7 @@ async def main() -> None:
             ),
         )
         summaries, names = history(cache, ids)
+        entries = await census(session, cache, ids)
         await fetch_all(
             session,
             (
@@ -720,6 +945,7 @@ async def main() -> None:
         "measured_on": time.strftime("%Y-%m-%d"),
         "history": summaries,
         "sample": {"files": len(names), **sample_texts(files), **zones},
+        "census": census_changes(entries),
         "day": {
             "criticality": DAY_CRITICALITY,
             "vigilance": DAY_VIGILANCE,
