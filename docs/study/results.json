@@ -2080,8 +2080,8 @@
       "68bcac32826e",
       "d124f4a6cd97"
     ],
-    "decode_dpc_seconds": 0.7392019210383296,
-    "decode_compact_seconds": 0.0005113589577376842,
+    "decode_dpc_seconds": 0.401680126786232,
+    "decode_compact_seconds": 0.00029231607913970947,
     "year_dpc_bytes": 7042301605,
     "year_compact_bytes": 4898300
   },

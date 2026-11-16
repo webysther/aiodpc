@@ -801,6 +801,16 @@ FIGURE_TEXTS: Final[dict[str, dict[str, str]]] = {
 """The texts of the figures, in the languages of the study."""
 
 
+def save(figure: Any, name: str) -> None:  # noqa: ANN401 - a matplotlib figure
+    """Write a figure as PNG, for the study, and as PDF, for the paper.
+
+    The PDF has no creation date, so that drawing it again gives the same file.
+    """
+    figure.savefig(FIGURES / f"{name}.png", dpi=150)
+    figure.savefig(FIGURES / f"{name}.pdf", metadata={"CreationDate": None})
+    plt.close(figure)
+
+
 def number(value: float, texts: dict[str, str], spec: str = ".1f") -> str:
     """Return a number with the decimal separator of a language."""
     return format(value, spec).replace(".", texts["decimal"])
@@ -832,8 +842,7 @@ def figure_sizes(day: dict[str, Any], language: str) -> None:
     axes.tick_params(colors=INK, labelsize=9)
     axes.set_title(texts["sizes"], loc="left", fontsize=11)
     figure.tight_layout()
-    figure.savefig(FIGURES / f"{language}-sizes.png", dpi=150)
-    plt.close(figure)
+    save(figure, f"{language}-sizes")
 
 
 def figure_composition(day: dict[str, Any], language: str) -> None:
@@ -865,8 +874,7 @@ def figure_composition(day: dict[str, Any], language: str) -> None:
     axes.tick_params(colors=INK, labelsize=9)
     axes.set_title(texts["composition"], loc="left", fontsize=11)
     figure.tight_layout()
-    figure.savefig(FIGURES / f"{language}-composition.png", dpi=150)
-    plt.close(figure)
+    save(figure, f"{language}-composition")
 
 
 def file_date(name: str) -> dt.date:
@@ -934,8 +942,7 @@ def figure_zones(
     axes.tick_params(colors=INK, labelsize=8)
     axes.set_title(texts["zones"], loc="left", fontsize=11)
     figure.tight_layout()
-    figure.savefig(FIGURES / f"{language}-zones.png", dpi=150)
-    plt.close(figure)
+    save(figure, f"{language}-zones")
 
 
 async def main() -> None:

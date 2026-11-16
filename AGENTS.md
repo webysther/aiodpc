@@ -57,6 +57,9 @@ docs/                data_dictionary.py writes data-dictionary.xlsx, the DPC dat
                      model with numeric codes, from the tables of aiodpc
 docs/study/          the study of the DPC data (en.md, it.md) and measure.py,
                      which makes every number it cites (results.json, figures)
+docs/paper/          the study as a research article (LaTeX, elsarticle) for
+                     Government Information Quarterly: manuscript.tex
+                     (anonymized), title-page.tex, highlights.txt, references.bib
 CITATION.cff         how to cite aiodpc and the study (author: Webysther Sperandio)
 ```
 
@@ -99,6 +102,10 @@ The coverage gate is 95% with branches; keep it at 100%.
 - The study (`docs/study/en.md`, `it.md`) says the same in both languages.
   Every number it cites comes from `results.json`, written by `measure.py`;
   every claim of method cites its source in the References.
+- The paper (`docs/paper/`) follows the study: a number changed in the study
+  changes in `manuscript.tex` too. The manuscript stays anonymized (no author
+  name, no link to this repository) while `\anonymoustrue`; every DOI of
+  `references.bib` is checked against Crossref.
 - The tutorial grows from one question about one place to the whole country;
   `examples/tutorial.ipynb` tells the same story with maps. Keep them in step.
 

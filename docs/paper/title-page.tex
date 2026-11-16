@@ -1,0 +1,65 @@
+%% Title page for Government Information Quarterly (double anonymized review).
+%% It carries everything that identifies the author, which manuscript.tex
+%% leaves out. The lines marked TO CONFIRM need the author's answer before
+%% submission: they are statements of fact that only the author can make.
+\documentclass[preprint,12pt]{elsarticle}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[hyphens]{url}
+\usepackage[colorlinks=true,allcolors=blue!50!black]{hyperref}
+
+\journal{Government Information Quarterly}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Early-warning bulletins as open government data: A census of the
+Italian civil protection alerts and a coded data model}
+
+\author{Webysther Sperandio\corref{cor1}}
+\ead{TO CONFIRM: the e-mail address for correspondence}
+% TO CONFIRM: affiliation, or "Independent researcher", with city and country.
+\affiliation{organization={TO CONFIRM},
+             city={TO CONFIRM},
+             country={TO CONFIRM}}
+\cortext[cor1]{Corresponding author. ORCID: TO CONFIRM.}
+
+\end{frontmatter}
+
+\section*{CRediT authorship contribution statement}
+
+\textbf{Webysther Sperandio:} Conceptualization, Methodology, Software,
+Validation, Formal analysis, Investigation, Data curation, Writing -- original
+draft, Writing -- review \& editing, Visualization.
+
+\section*{Declaration of competing interest}
+
+% TO CONFIRM: that there is no financial interest to declare.
+The author maintains \texttt{aiodpc}, the open-source library used as the
+reference implementation in this study, which is distributed free of charge
+under the MIT licence. The author has no other relationship with the
+Dipartimento della Protezione Civile and no financial interest to declare.
+
+\section*{Funding}
+
+% TO CONFIRM: that the work had no funding.
+This research did not receive any specific grant from funding agencies in the
+public, commercial, or not-for-profit sectors.
+
+\section*{Acknowledgements}
+
+The bulletins are released by the Dipartimento della Protezione Civile --
+Presidenza del Consiglio dei Ministri under the CC BY 4.0 licence. The study is
+not affiliated with or endorsed by the Department.
+
+\section*{Data and code}
+
+The measurement script, its results, the figures, the data dictionary of the
+codes and the implementation are available at
+\url{https://github.com/webysther/aiodpc}, in \texttt{docs/study}.
+% TO CONFIRM: archive a release on Zenodo and add its DOI here.
+
+\end{document}

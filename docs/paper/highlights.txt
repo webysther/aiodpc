@@ -1,0 +1,7 @@
+Highlights
+
+- A census of 2,571 Italian alert bulletins measures what each daily release holds
+- Zone shapes are 96% of a file and matched in 99.9% of consecutive bulletins
+- The census dates encoding, accumulation and missing-data defects per bulletin
+- A coded model carries one day of both bulletins in 13.4 kB instead of 19.3 MB
+- Numeric codes let reusers render official warnings in any language
