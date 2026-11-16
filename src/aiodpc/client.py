@@ -30,6 +30,7 @@ from .parsers import (
     parse_criticality_id,
     parse_vigilance_id,
 )
+from .previews import is_blank_preview
 from .urls import (
     CRITICALITY_DAYS,
     VIGILANCE_DAYS,
@@ -62,6 +63,9 @@ class DpcClient:
       bulletins once and read them at each location.
     - :meth:`get_criticality_file` and the other ``*_file`` methods: the raw
       DPC files as strict DTOs (optional, ``aiodpc[schema]``).
+
+    :meth:`get_preview` downloads the preview image of the map of a day, when
+    it is not blank.
 
     The bulletin files are large (a few MB per day): to poll the bulletins,
     compare :meth:`latest_bulletin_id` with the ID of the bulletin already
@@ -238,6 +242,22 @@ class DpcClient:
         )
         zones, phenomena = files[::2], files[1::2]
         return VigilanceMap(bulletin_id, zip(offsets, zones, phenomena, strict=True))
+
+    async def get_preview(self, image_url: str) -> bytes | None:
+        """Return the preview of a national map, a PNG; None while it is blank.
+
+        ``image_url`` is the ``image_url`` of a :class:`CriticalityDay` or of a
+        :class:`VigilanceDay`. DPC often publishes a preview blank, and
+        sometimes replaces it later at the same address
+        (:mod:`aiodpc.previews`): ask again later rather than keep a blank one.
+
+        Raises :class:`DpcConnectionError`.
+        """
+        image = await self._request(image_url)
+        # Reading a whole preview takes about 20 ms: in a worker thread, as JSON
+        if await asyncio.to_thread(is_blank_preview, image):
+            return None
+        return image
 
     async def is_location_covered(self, location: Location) -> bool:
         """Return whether a location is inside a DPC alert zone.

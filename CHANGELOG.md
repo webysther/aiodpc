@@ -23,6 +23,12 @@ stay numbers; compressed, it is about the size of the CSV it replaces.
 
 ### Added
 
+- `DpcClient.get_preview()`: the preview image of the map of a day, or `None`
+  while DPC publishes it blank, and `aiodpc.previews.is_blank_preview()` for a
+  preview downloaded by other means, without an imaging library. From August
+  to November 2026, DPC published 40% of the criticality previews and 5% of
+  the vigilance previews blank, and replaced only some of them later, at the
+  same address: ask again later rather than keep a blank one.
 - `data/2026-Q3` in the repository: every bulletin of the third quarter of
   2026 as JSON Lines, 1.1 MB for the 1.8 GB of GeoJSON that DPC published,
   with examples in pandas and DuckDB. `data/build.py` writes any quarter.

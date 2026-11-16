@@ -25,12 +25,14 @@ from aiodpc import (
 )
 from aiodpc.urls import (
     criticality_geojson_url,
+    criticality_preview_url,
     phenomena_geojson_url,
     vigilance_geojson_url,
 )
 
 from . import (
     CRIT_ID,
+    FIXTURES,
     NEAR_COMO,
     PARIS,
     PUBLICATION_DAY,
@@ -567,3 +569,30 @@ async def test_alert_zone_unreachable(client: DpcClient, dpc: FakeDpc) -> None:
 
     with pytest.raises(DpcConnectionError):
         await client.get_alert_zone(ROME)
+
+
+PREVIEW_URL = criticality_preview_url(CRIT_ID, 0)
+
+
+async def test_get_preview(dpc: FakeDpc, client: DpcClient) -> None:
+    """Test that the preview of a map is returned, and a blank one is not."""
+    real = FIXTURES / "real"
+    preview = (real / "preview_20261115_1421_oggi.png").read_bytes()
+    dpc.add(
+        PREVIEW_URL, body=(real / "preview_20261115_1421_oggi_blank.png").read_bytes()
+    )
+
+    assert await client.get_preview(PREVIEW_URL) is None
+
+    # DPC replaces it at the same address
+    dpc.add(PREVIEW_URL, body=preview)
+
+    assert await client.get_preview(PREVIEW_URL) == preview
+
+
+async def test_get_preview_unreachable(dpc: FakeDpc, client: DpcClient) -> None:
+    """Test that a preview that cannot be downloaded raises DpcConnectionError."""
+    dpc.add(PREVIEW_URL, status=404)
+
+    with pytest.raises(DpcConnectionError, match="HTTP status 404"):
+        await client.get_preview(PREVIEW_URL)

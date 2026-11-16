@@ -454,6 +454,43 @@ aiodpc does not use them and keeps working when the data is incomplete.
 `get_criticality_file()`, `get_vigilance_file()` and `get_phenomena_file()`
 cover the three files; `aiodpc.schema` decodes files fetched by other means.
 
+### Map previews
+
+Each day of a bulletin has `image_url`, the preview of the national map: a PNG
+of 700 × 900 pixels (DPC publishes none for the vigilance of the day after
+tomorrow). DPC often publishes it blank, a single white color, and sometimes
+replaces it later at the same address: from August to mid-November 2026, 88
+of the 220 criticality previews were published blank, and only 33 were
+replaced, after 7 to 227 minutes; 10 of the 214 vigilance previews.
+`get_preview()` downloads a preview and returns `None` while it is blank, to
+ask again later; `aiodpc.previews.is_blank_preview()` checks one downloaded
+by other means, without an imaging library.
+
+```python
+import asyncio
+
+from aiodpc import DpcClient, Location
+
+
+async def main() -> None:
+    async with DpcClient() as dpc:
+        bulletin = await dpc.get_criticality(Location(41.9, 12.5))
+        for day in bulletin:
+            preview = await dpc.get_preview(day.image_url)
+            if preview is None:  # blank: DPC may replace it later
+                print(f"{day.date}: blank, ask again later")
+            else:
+                print(f"{day.date}: a PNG of {len(preview)} bytes")
+
+
+asyncio.run(main())
+```
+
+```text
+2026-11-16: blank, ask again later
+2026-11-17: blank, ask again later
+```
+
 ### Municipality
 
 With `dpc.location(41.9, 12.5, municipality="Roma")` or
@@ -612,6 +649,8 @@ the third quarter of 2026.
 - `aiodpc.parsers`: pure parsing functions taking the decoded GeoJSON, to parse
   one download for several locations or to test without network.
 - `aiodpc.urls`: URLs of the bulletin files.
+- `aiodpc.previews`: `is_blank_preview()`, whether a preview of a map,
+  downloaded by other means, is blank.
 - `aiodpc.discovery`: the latest bulletin ID is read from the DPC map pages by
   default (`MapPageIdSource`); implement `BulletinIdSource` to use another
   source.

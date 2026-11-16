@@ -42,6 +42,7 @@ src/aiodpc/
                      for any number of places, without I/O; .compact()
   compact.py         a whole bulletin as numeric codes and a zone table
   parsers.py         pure parsing of the decoded GeoJSON, without I/O
+  previews.py        the preview images of the maps: is_blank_preview(), without I/O
   models.py          frozen dataclasses and enums; exceptions.py
   discovery.py       the latest bulletin ID, from the DPC map pages
   urls.py, geo.py, const.py
@@ -68,7 +69,7 @@ CITATION.cff         how to cite aiodpc and the study (author: Webysther Sperand
 
 The public API is what `aiodpc/__init__.py` exports in `__all__`, plus the
 documented modules: `parsers`, `urls`, `geo`, `municipalities`, `discovery`,
-`schema`, `i18n`, `compact`.
+`schema`, `i18n`, `compact`, `previews`.
 
 ## Checks
 
@@ -170,6 +171,10 @@ Facts that are easy to get wrong:
     coordinates.
 - A bulletin is about 18 MB: check its features once (`GeoJsonFeatures`) and
   read it at every place.
+- The previews of the maps (`image_url`) are often published blank, a white
+  PNG, and sometimes replaced later at the same address: 40% of the
+  criticality previews and 5% of the vigilance previews from August to
+  November 2026 (`aiodpc.previews`). `get_preview()` returns `None` for them.
 
 ## Versioning and releases
 
@@ -196,7 +201,7 @@ Facts that are easy to get wrong:
 - No magic numbers: a `Final` constant whose docstring says where its value
   comes from (see `MUNICIPALITY_RADIUS_KM`).
 - Parsing stays pure and I/O stays in the client: no network in `parsers`,
-  `maps`, `geo` or `municipalities`.
+  `maps`, `geo`, `municipalities` or `previews`.
 - mypy strict, ruff with every rule. A `# noqa` or `# type: ignore[code]`
   needs a reason.
 - Comments explain why, not what.
