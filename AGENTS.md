@@ -149,11 +149,14 @@ Facts that are easy to get wrong:
 
 - Semantic Versioning: before 1.0 a minor version may change the API; a patch
   fixes behaviour, and may add a helper the fix needs.
-- To prepare a release, set `__version__` in `src/aiodpc/__init__.py` and add
-  a `## [X.Y.Z] - Unreleased` section to `CHANGELOG.md`
-  ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/): Added, Changed,
-  Fixed, Removed), written for the users of the library, with its compare
-  link at the end of the file.
+- To prepare a release, add a `## [X.Y.Z] - Unreleased` section to
+  `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/):
+  Added, Changed, Fixed, Removed), written for the users of the library, with
+  its compare link at the end of the file.
+- In the same change that opens that section, set `__version__` in
+  `src/aiodpc/__init__.py` to `X.Y.Z`. It is the version of the package
+  (`pyproject.toml` reads it), and `publish.sh` stops with
+  `src/aiodpc/__init__.py has version A, not X.Y.Z` when it does not match.
 - The maintainer commits and runs `./publish.sh X.Y.Z [--dry-run]`. It dates
   the section, creates the GitHub release with its notes, and the release
   workflow tests, builds and publishes to PyPI.
