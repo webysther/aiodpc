@@ -4,10 +4,15 @@
 # which tests, builds and uploads the package to PyPI.
 #
 # Usage: ./publish.sh VERSION [--dry-run]
+#        ./publish.sh paper [--dry-run]
 #
 #   ./publish.sh 0.2.0            publish v0.2.0
 #   ./publish.sh 0.1.0            v0.1.0 exists: only update its notes
 #   ./publish.sh 0.2.0 --dry-run  show the notes and run the checks, change nothing
+#   ./publish.sh paper            download the PDFs of the paper, as built by
+#                                 .github/workflows/paper.yml from the pushed
+#                                 commits, to paper-rN.pdf and
+#                                 paper-rN-title-page.pdf (ignored by git)
 #
 # Before publishing, __version__ in src/aiodpc/__init__.py must be VERSION and
 # CHANGELOG.md must have a "## [VERSION]" section; "Unreleased" in its title is
@@ -17,6 +22,10 @@ set -euo pipefail
 readonly CHANGELOG=CHANGELOG.md
 readonly VERSION_FILE=src/aiodpc/__init__.py
 readonly BRANCH=main
+readonly PAPER_CHANGELOG=docs/paper/CHANGELOG.md
+readonly PAPER_WORKFLOW=paper.yml
+# What the paper is built from: a change here is a new revision of the paper.
+readonly PAPER_FILES=(docs/paper docs/study/figures .github/workflows/paper.yml)
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
@@ -64,6 +73,78 @@ for arg in "$@"; do
   esac
 done
 [[ -n $version ]] || usage 2
+
+# Download the PDFs of the paper that GitHub Actions built from the last
+# pushed commit that changed it; build them first when no run did.
+publish_paper() {
+  local revision commit run_id downloads
+  revision=$(sed -n 's/^## r\([0-9][0-9]*\) .*/\1/p' "$PAPER_CHANGELOG" | head -n 1)
+  [[ -n $revision ]] || die "$PAPER_CHANGELOG has no revision: add a '## r1 - DATE' section"
+
+  step "Checking the repository"
+  [[ -z $(git status --porcelain -- "${PAPER_FILES[@]}") ]] ||
+    check "uncommitted changes to the paper: commit them as a new revision first"
+  git fetch --quiet origin "$BRANCH"
+  git merge-base --is-ancestor HEAD "origin/$BRANCH" ||
+    check "HEAD is not on origin/$BRANCH: push first, GitHub Actions builds the PDFs"
+  commit=$(git log -1 --format=%H -- "${PAPER_FILES[@]}")
+  echo "Revision r$revision, last changed by $(git log -1 --format='%h %s' "$commit")"
+
+  if ! gh workflow view "$PAPER_WORKFLOW" >/dev/null 2>&1; then
+    check "the Paper workflow is not on GitHub: push .github/workflows/$PAPER_WORKFLOW"
+    echo >&2
+    die "dry run: $problems problem(s) would stop the download"
+  fi
+  run_id=$(gh run list --workflow "$PAPER_WORKFLOW" --commit "$commit" \
+    --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  if [[ -z $run_id ]]; then
+    step "No build of $(git rev-parse --short "$commit") yet: building origin/$BRANCH"
+    if $dry_run; then
+      echo "[dry-run] gh workflow run $PAPER_WORKFLOW --ref $BRANCH, then wait for it"
+    else
+      local head
+      head=$(git rev-parse "origin/$BRANCH")
+      gh workflow run "$PAPER_WORKFLOW" --ref "$BRANCH"
+      for _ in {1..20}; do
+        run_id=$(gh run list --workflow "$PAPER_WORKFLOW" --commit "$head" \
+          --event workflow_dispatch --limit 1 --json databaseId \
+          --jq '.[0].databaseId // empty')
+        [[ -n $run_id ]] && break
+        sleep 3
+      done
+      [[ -n $run_id ]] || die "the Paper workflow did not start: check GitHub Actions"
+      gh run watch "$run_id" --exit-status
+    fi
+  fi
+
+  if ((problems)); then
+    echo >&2
+    die "dry run: $problems problem(s) would stop the download"
+  fi
+  step "Downloading the PDFs of revision r$revision"
+  if $dry_run; then
+    echo "[dry-run] gh run download ${run_id:-RUN} --name paper:" \
+      "paper-r$revision.pdf, paper-r$revision-title-page.pdf"
+    echo
+    echo "Dry run: nothing was changed."
+    return
+  fi
+  downloads=$(mktemp -d)
+  gh run download "$run_id" --name paper --dir "$downloads"
+  mv "$downloads/manuscript.pdf" "paper-r$revision.pdf"
+  mv "$downloads/title-page.pdf" "paper-r$revision-title-page.pdf"
+  rm -rf "$downloads"
+  echo "Done: paper-r$revision.pdf and paper-r$revision-title-page.pdf"
+}
+
+if [[ $version == paper ]]; then
+  cd "$(dirname "$0")"
+  command -v gh >/dev/null || die "the GitHub CLI (gh) is required"
+  gh auth status >/dev/null 2>&1 || die "gh is not logged in: run 'gh auth login'"
+  publish_paper
+  exit 0
+fi
+
 [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
   die "invalid version '$version', expected X.Y.Z (e.g. 0.2.0)"
 readonly tag="v$version"

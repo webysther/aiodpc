@@ -38,3 +38,6 @@ docs/paper/*.log
 docs/paper/*.out
 docs/paper/*.spl
 docs/paper/*.pdf
+
+# The PDFs of the paper downloaded by ./publish.sh paper
+/paper-r*.pdf

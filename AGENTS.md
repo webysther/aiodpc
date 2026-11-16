@@ -59,7 +59,8 @@ docs/study/          the study of the DPC data (en.md, it.md) and measure.py,
                      which makes every number it cites (results.json, figures)
 docs/paper/          the study as a research article (LaTeX, elsarticle) for
                      Government Information Quarterly: manuscript.tex
-                     (anonymized), title-page.tex, highlights.txt, references.bib
+                     (anonymized), title-page.tex, highlights.txt, references.bib,
+                     CHANGELOG.md (its revisions); built by .github/workflows/paper.yml
 CITATION.cff         how to cite aiodpc and the study (author: Webysther Sperandio)
 ```
 
@@ -106,6 +107,15 @@ The coverage gate is 95% with branches; keep it at 100%.
   changes in `manuscript.tex` too. The manuscript stays anonymized (no author
   name, no link to this repository) while `\anonymoustrue`; every DOI of
   `references.bib` is checked against Crossref.
+- The paper has revisions, listed in `docs/paper/CHANGELOG.md` (`## rN -
+  DATE`, newest first). A change to its content (`manuscript.tex`,
+  `title-page.tex`, `highlights.txt`, `references.bib`, or the figures and
+  numbers of `docs/study` it uses) after the latest revision was committed
+  opens a new revision, with what changed; further changes before the next
+  commit stay in that revision. The build, the README and the changelog of the
+  paper are not its content.
+  `.github/workflows/paper.yml` builds the PDFs, and `./publish.sh paper`
+  downloads them to `paper-rN.pdf` (ignored by git).
 - The tutorial grows from one question about one place to the whole country;
   `examples/tutorial.ipynb` tells the same story with maps. Keep them in step.
 

@@ -1,0 +1,46 @@
+name: Paper
+
+# Build the PDFs of the paper (docs/paper) when its files change. They are
+# kept as the artifact "paper" of the run; ./publish.sh paper downloads them.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/paper/**
+      - docs/study/figures/en-*.pdf
+      - .github/workflows/paper.yml
+  pull_request:
+    paths:
+      - docs/paper/**
+      - docs/study/figures/en-*.pdf
+      - .github/workflows/paper.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paper:
+    name: Build the PDFs
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Build with LaTeX (TeX Live, latexmk)
+        uses: xu-cheng/latex-action@v3
+        with:
+          working_directory: docs/paper
+          root_file: |
+            manuscript.tex
+            title-page.tex
+
+      - name: Store the PDFs
+        uses: actions/upload-artifact@v7
+        with:
+          name: paper
+          path: |
+            docs/paper/manuscript.pdf
+            docs/paper/title-page.pdf
+          if-no-files-found: error

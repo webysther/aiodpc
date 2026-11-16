@@ -10,6 +10,7 @@ for double anonymized review.
 | `title-page.tex` | Author, affiliation, CRediT roles, declarations |
 | `highlights.txt` | Five highlights, at most 85 characters each |
 | `references.bib` | The references; every DOI checked against Crossref |
+| `CHANGELOG.md` | The revisions of the paper |
 
 The figures are the PDFs that [`measure.py`](../study/measure.py) draws in
 `docs/study/figures`; every number comes from
@@ -17,7 +18,15 @@ The figures are the PDFs that [`measure.py`](../study/measure.py) draws in
 
 ## Build
 
-With TeX Live (`elsarticle` is part of it):
+GitHub Actions builds both PDFs ([`paper.yml`](../../.github/workflows/paper.yml))
+whenever the paper changes on `main`. To download them, after pushing:
+
+```bash
+./publish.sh paper      # paper-rN.pdf and paper-rN-title-page.pdf, ignored by git
+```
+
+`rN` is the latest revision in [`CHANGELOG.md`](CHANGELOG.md). Locally, with
+TeX Live (`elsarticle` is part of it):
 
 ```bash
 cd docs/paper
@@ -25,7 +34,7 @@ latexmk -pdf manuscript.tex
 latexmk -pdf title-page.tex
 ```
 
-On Overleaf, upload the four files above and the three `en-*.pdf` figures,
+On Overleaf, upload the `.tex` and `.bib` files and the three `en-*.pdf` figures,
 and change `\graphicspath` in `manuscript.tex` to the folder of the figures.
 
 For the preprint or the accepted version, set `\anonymousfalse`: the
@@ -47,19 +56,3 @@ JCR in its field. Government Information Quarterly is in that group.
 
 Moving to JDIQ means changing the class (`acmart`, `acmsmall`) and adding the
 CCS concepts; the text needs no change.
-
-## Before submitting
-
-- [ ] Fill in the lines marked `TO CONFIRM` in `title-page.tex`: e-mail,
-      affiliation, ORCID, competing interests, funding.
-- [ ] Archive a release of the repository on Zenodo and cite its DOI in the
-      data availability statement.
-- [ ] Give the reviewers an anonymized copy of the repository (for example
-      anonymous.4open.science) and its link to the editor.
-- [ ] Read the current guide for authors of the journal: the length, the
-      abstract and the reference style (APA) may have changed; the
-      `elsarticle-harv` style is accepted at first submission.
-- [ ] Check the declaration of generative AI: it must say what the tools did.
-- [ ] Have a native speaker of English read the text.
-- [ ] Write the cover letter: the problem, the census, the artefact, and why
-      the journal.
