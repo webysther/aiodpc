@@ -76,6 +76,8 @@ CENSUS_DIGEST: Final = 16
 collision among a few thousand shapes is out of the question."""
 CENSUS_PROGRESS: Final = 100
 """Bulletins between two progress lines of the census."""
+NAMED_CHANGES: Final = 20
+"""Changes of zones up to this size list the names of the zones."""
 DAYS_PER_YEAR: Final = 365
 RFC7946_DECIMALS: Final = 6
 """Decimals of a coordinate RFC 7946 (GeoJSON, section 11.2) finds enough:
@@ -86,6 +88,20 @@ INSIDE_LABEL: Final = 0.2
 
 COLOR: Final = "#2a78d6"
 INK: Final = "#52514e"
+
+SAME_LABEL_DAYS: Final = 90
+"""Changes of shape closer than this share a label in the figure of the zones."""
+LABEL_PLACES: Final[tuple[tuple[tuple[int, int], str], ...]] = (
+    ((10, -15), "center"),
+    ((8, -3), "left"),
+    ((0, 9), "center"),
+    ((0, 9), "center"),
+    ((0, -15), "center"),
+    ((0, 9), "center"),
+)
+"""Offset in points and alignment of each label of the figure of the zones,
+placed for the changes measured: the first two, ten months apart, are below
+the line and to the right of their point."""
 
 APOSTROPHE: Final = "\u2019"
 """The typographic apostrophe, three bytes in UTF-8: the character the zone
@@ -521,9 +537,18 @@ def census_changes(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
     zone_sets: list[dict[str, Any]] = []
     shapes: list[dict[str, Any]] = []
     municipalities: list[dict[str, Any]] = []
+    earlier: dict[str, Any] | None = None
     previous: dict[str, Any] | None = None
-    for entry in measured:
+    for position, entry in enumerate(measured):
         zones = entry["zones"]
+        following = measured[position + 1] if position + 1 < len(measured) else None
+        # A bulletin whose zones the next one gives back exactly is a defect of
+        # that bulletin, not a change of the zones
+        reverted = bool(
+            previous and following and following["zones"] == previous["zones"]
+        )
+        # ...and the next bulletin only gives back the zones before it
+        restores = bool(earlier and zones == earlier["zones"])
         if previous is None or set(zones) != set(previous["zones"]):
             before = previous["zones"] if previous else zones
             zone_sets.append(
@@ -533,6 +558,8 @@ def census_changes(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
                     "zones": len(zones),
                     "added": sorted(set(zones) - set(before)),
                     "removed": sorted(set(before) - set(zones)),
+                    "reverted": reverted,
+                    "restores": restores,
                 }
             )
         if previous is not None:
@@ -553,9 +580,12 @@ def census_changes(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
                             "bulletin": entry["id"],
                             "zones": len(changed),
                             "of": len(common),
+                            "names": changed if len(changed) <= NAMED_CHANGES else [],
+                            "reverted": reverted,
+                            "restores": restores,
                         }
                     )
-        previous = entry
+        earlier, previous = previous, entry
     sizes = [entry["bytes"] for entry in measured]
     defects = {
         defect: {
@@ -585,12 +615,27 @@ def census_changes(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "largest_bytes": max(sizes),
         "compared": compared,
         "same": same,
+        "reference_versions": sorted(
+            {
+                change["bulletin"]
+                for change in [*zone_sets, *shapes, *municipalities]
+                if not change["reverted"] and not change["restores"]
+            }
+        ),
         "zone_set_changes": zone_sets,
         "shape_changes": shapes,
         "municipality_changes": municipalities,
         "lost_characters": defects["lost"],
         "replaced_characters": defects["replaced"],
-        "repeated_municipalities": defects["repeated"],
+        "repeated_municipalities": {
+            **defects["repeated"],
+            "by_year": {
+                year: [len(found), min(found), max(found)]
+                for year, group in groupby(measured, key=lambda e: e["id"][:4])
+                for found in [[e["repeated"] for e in group if e["repeated"]]]
+                if found
+            },
+        },
         "without_municipalities": {
             **defects["without_municipalities"],
             "zones": dict(empty.most_common()),
@@ -732,7 +777,7 @@ FIGURE_TEXTS: Final[dict[str, dict[str, str]]] = {
         "geometry": "Zone shapes",
         "municipalities": "Municipality lists",
         "other": "Names and alerts",
-        "zones": "Alert zones in the sampled bulletins, and when shapes changed",
+        "zones": "Alert zones of every bulletin, and when their shapes changed",
         "zones_axis": "Zones",
         "shapes": "{date}: {count} shapes",
         "decimal": ".",
@@ -747,7 +792,7 @@ FIGURE_TEXTS: Final[dict[str, dict[str, str]]] = {
         "geometry": "Forme delle zone",
         "municipalities": "Elenchi dei comuni",
         "other": "Nomi e allerte",
-        "zones": "Zone di allerta nel campione, e quando sono cambiate le forme",
+        "zones": "Zone di allerta di ogni bollettino, e quando sono cambiate le forme",
         "zones_axis": "Zone",
         "shapes": "{date}: {count} forme",
         "decimal": ",",
@@ -830,22 +875,37 @@ def file_date(name: str) -> dt.date:
 
 
 def figure_zones(
-    names: Sequence[str],
-    files: Sequence[dict[str, Any]],
-    shapes: dict[str, Any],
-    language: str,
+    entries: Sequence[dict[str, Any]], changes: dict[str, Any], language: str
 ) -> None:
-    """Draw the number of zones over time, and when their shapes changed."""
+    """Draw the number of zones of every bulletin, and when shapes changed.
+
+    Changes of shape less than :data:`SAME_LABEL_DAYS` apart share a label,
+    and a change that the next bulletin undid is left out: it is a defect, not
+    a change of the zones.
+    """
     texts = FIGURE_TEXTS[language]
-    dates = [file_date(name) for name in names]
-    counts = [len(geojson["features"]) for geojson in files]
+    measured = [entry for entry in entries if not entry.get("missing")]
+    dates = [file_date(entry["id"]) for entry in measured]
+    counts = [len(entry["zones"]) for entry in measured]
+    count_on = dict(zip((entry["id"] for entry in measured), counts, strict=True))
+    groups: list[list[dict[str, Any]]] = []
+    for change in changes["shape_changes"]:
+        if change["reverted"] or change["restores"]:
+            continue
+        when = file_date(change["bulletin"])
+        if groups and (when - file_date(groups[-1][-1]["bulletin"])).days < (
+            SAME_LABEL_DAYS
+        ):
+            groups[-1].append(change)
+        else:
+            groups.append([change])
     figure, axes = plt.subplots(figsize=(7, 2.8), facecolor="white")
     axes.step(dates, counts, where="post", color=COLOR, linewidth=2)
-    for index, change in enumerate(shapes["changes"]):
-        when = file_date(change["file"])
-        count = counts[list(names).index(change["file"])]
+    for index, group in enumerate(groups):
+        first, last = file_date(group[0]["bulletin"]), file_date(group[-1]["bulletin"])
+        count = count_on[group[0]["bulletin"]]
         axes.plot(
-            [when],
+            [first],
             [count],
             "o",
             color=COLOR,
@@ -853,13 +913,18 @@ def figure_zones(
             markeredgecolor="white",
             markeredgewidth=1.5,
         )
-        above = index % 2 == 0
+        months = f"{first:%Y-%m}" + (f"/{last:%m}" if last.month != first.month else "")
+        offset, align = (
+            LABEL_PLACES[index] if index < len(LABEL_PLACES) else ((0, 9), "center")
+        )
         axes.annotate(
-            texts["shapes"].format(date=f"{when:%Y-%m}", count=change["zones"]),
-            (when, count),
+            texts["shapes"].format(
+                date=months, count=" + ".join(str(change["zones"]) for change in group)
+            ),
+            (first, count),
             textcoords="offset points",
-            xytext=(0, 9 if above else -15),
-            ha="center",
+            xytext=offset,
+            ha=align,
             fontsize=8,
             color=INK,
         )
@@ -939,13 +1004,14 @@ async def main() -> None:
         }
     files = [json.loads((cache / "geo" / name).read_bytes()) for name in names]
     zones = sample_zones(names, files)
+    changes = census_changes(entries)
     day_results = one_day(day)
     results = {
         "until": UNTIL,
         "measured_on": time.strftime("%Y-%m-%d"),
         "history": summaries,
         "sample": {"files": len(names), **sample_texts(files), **zones},
-        "census": census_changes(entries),
+        "census": changes,
         "day": {
             "criticality": DAY_CRITICALITY,
             "vigilance": DAY_VIGILANCE,
@@ -960,7 +1026,7 @@ async def main() -> None:
     for language in FIGURE_TEXTS:
         figure_sizes(day_results, language)
         figure_composition(day_results, language)
-        figure_zones(names, files, zones["shapes"], language)
+        figure_zones(entries, changes, language)
 
 
 if __name__ == "__main__":
