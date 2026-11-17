@@ -1,0 +1,14 @@
+# Prettier formats the YAML: the workflows. The rest keeps the format of what
+# writes it:
+
+# Markdown is wrapped by hand, and the README is also the page of PyPI
+*.md
+
+# JSON and HTML: the fixtures, with the unmodified excerpts of real DPC files
+# in tests/fixtures/real; the data written by data/build.py; the results
+# written by docs/study/measure.py; the notebook, written by Jupyter
+*.json
+*.jsonl
+*.geojson
+*.ipynb
+*.html

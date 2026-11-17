@@ -1,0 +1,19 @@
+# Text files are stored and checked out with LF, as they are written
+* text=auto eol=lf
+
+# Unmodified excerpts of real DPC files: kept byte for byte
+tests/fixtures/real/** -text
+
+# Binary files
+*.png binary
+*.pdf binary
+*.xlsx binary
+
+# Written by scripts, collapsed in the diffs of GitHub: the bulletins of a
+# quarter (data/build.py), the numbers and figures of the study
+# (docs/study/measure.py) and the data dictionary (docs/data_dictionary.py)
+data/**/*.jsonl linguist-generated
+data/**/zones/** linguist-generated
+docs/study/results.json linguist-generated
+docs/study/figures/** linguist-generated
+docs/data-dictionary.xlsx linguist-generated

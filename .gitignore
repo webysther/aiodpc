@@ -23,10 +23,17 @@ htmlcov/
 build/
 dist/
 
-# Editors and OS
+# Jupyter, for examples/tutorial.ipynb
+.ipynb_checkpoints/
+
+# Local settings of editors and assistants
 .idea/
 .vscode/
+.claude/settings.local.json
+
+# Operating systems
 .DS_Store
+Thumbs.db
 
 # LaTeX builds of docs/paper
 docs/paper/*.aux

@@ -81,7 +81,14 @@ pip install --editable . --group dev   # pip >= 25.1
 ruff format --check . && ruff check .  # every rule ("ALL"), see pyproject.toml
 mypy                                   # strict, src and tests
 pytest --cov
+npx prettier --check .                 # the YAML of the workflows
 ```
+
+The dotfiles say how each file is written: `.editorconfig` (LF, UTF-8,
+indentation), `.prettierrc` (Prettier for the YAML, `printWidth` 100;
+`.prettierignore` leaves out the Markdown, the JSON and the notebook),
+`.gitattributes` (LF; `tests/fixtures/real` byte for byte; the generated data
+collapsed in diffs) and `.python-version` (3.14, the newest version CI tests).
 
 CI runs the same on Python 3.13 and 3.14. Warnings are errors in pytest.
 The coverage gate is 95% with branches; keep it at 100%.
